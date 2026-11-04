@@ -6,7 +6,7 @@ services:
     container_name: reparo-backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       APP_NAME: "Reparo"
       APP_ENV: production
