@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/reparo_theme.dart';
 
-enum BadgeVariant { success, error, warning, neutral }
+enum BadgeVariant { success, error, warning, neutral, accent }
 
 class StatusBadge extends StatelessWidget {
   final String label;
@@ -35,6 +35,10 @@ class StatusBadge extends StatelessWidget {
         textColor = ReparoTheme.statusNeutral;
         bgColor = ReparoTheme.statusNeutralBg;
         break;
+      case BadgeVariant.accent:
+        textColor = ReparoTheme.accent;
+        bgColor = const Color(0xFFE0F2FE);
+        break;
     }
 
     return Container(
@@ -55,4 +59,3 @@ class StatusBadge extends StatelessWidget {
     );
   }
 }
-
