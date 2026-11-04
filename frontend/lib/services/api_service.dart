@@ -115,6 +115,20 @@ class ApiService {
               'token': 'demo-tech-token',
             }
           };
+        } else if (email == 'cashier@reparo.test') {
+          return {
+            'success': true,
+            'data': {
+              'user': {
+                'id': '4',
+                'name': 'Demo Kasir',
+                'email': 'cashier@reparo.test',
+                'role_code': 'CASHIER',
+                'email_verified_at': DateTime.now().toIso8601String(),
+              },
+              'token': 'demo-cashier-token',
+            }
+          };
         } else if (email == 'admin@reparo.test') {
           return {
             'success': true,

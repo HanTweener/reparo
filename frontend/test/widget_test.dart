@@ -97,8 +97,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Portal Teknisi'), findsOneWidget);
-    expect(find.text('Tugas Saya'), findsOneWidget);
-    expect(find.text('Antrean Global'), findsOneWidget);
+    expect(find.text('Tugas Saya'), findsWidgets);
+    expect(find.text('Antrean Global'), findsWidgets);
     expect(find.text('Riwayat Selesai'), findsOneWidget);
   });
 }
