@@ -3,19 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/services/repair_service.dart';
+import 'package:frontend/services/technician_service.dart';
 import 'package:frontend/state/auth_state.dart';
 
 void main() {
+  AuthState createTestAuthState() {
+    return AuthState(
+      apiService: ApiService(),
+      repairService: RepairService(),
+      technicianService: TechnicianService(),
+    );
+  }
+
   testWidgets('Reparo App renders login screen and toggles registration', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final apiService = ApiService();
-    final repairService = RepairService();
-    final authState = AuthState(apiService: apiService, repairService: repairService);
-
+    final authState = createTestAuthState();
     await tester.pumpWidget(ReparoApp(authState: authState));
 
     expect(find.text('Reparo'), findsOneWidget);
@@ -35,10 +41,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final apiService = ApiService();
-    final repairService = RepairService();
-    final authState = AuthState(apiService: apiService, repairService: repairService);
-
+    final authState = createTestAuthState();
     await tester.pumpWidget(ReparoApp(authState: authState));
 
     await tester.tap(find.text('Pelanggan'));
@@ -55,36 +58,47 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final apiService = ApiService();
-    final repairService = RepairService();
-    final authState = AuthState(apiService: apiService, repairService: repairService);
-
+    final authState = createTestAuthState();
     await tester.pumpWidget(ReparoApp(authState: authState));
 
     await tester.tap(find.text('Admin'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Antrean Operasional'), findsOneWidget);
-    expect(find.text('Kelola Staf'), findsOneWidget);
+    expect(find.text('Buat Booking Baru'), findsOneWidget);
   });
 
-  testWidgets('Quick demo technician signs in and renders technician task workbench', (WidgetTester tester) async {
+  testWidgets('Quick demo cashier signs in and renders cashier operations queue', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final apiService = ApiService();
-    final repairService = RepairService();
-    final authState = AuthState(apiService: apiService, repairService: repairService);
+    final authState = createTestAuthState();
+    await tester.pumpWidget(ReparoApp(authState: authState));
 
+    await tester.tap(find.text('Kasir'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Antrean Operasional'), findsOneWidget);
+    expect(find.text('Buat Booking Baru'), findsOneWidget);
+  });
+
+  testWidgets('Quick demo technician signs in and renders technician portal with scopes', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authState = createTestAuthState();
     await tester.pumpWidget(ReparoApp(authState: authState));
 
     await tester.tap(find.text('Teknisi'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Tugas Teknisi'), findsOneWidget);
-    expect(find.text('Diagnosis Aman Pelanggan'), findsWidgets);
-    expect(find.text('Catatan Internal Staf'), findsWidgets);
+    expect(find.textContaining('Portal Teknisi'), findsOneWidget);
+    expect(find.text('Tugas Saya'), findsOneWidget);
+    expect(find.text('Antrean Global'), findsOneWidget);
+    expect(find.text('Riwayat Selesai'), findsOneWidget);
   });
 }

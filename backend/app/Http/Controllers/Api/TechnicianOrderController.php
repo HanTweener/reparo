@@ -3,30 +3,45 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\OrderAssignmentEvent;
 use App\Models\RepairOrder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TechnicianOrderController extends Controller
 {
     /**
-     * List repair orders assigned to the authenticated technician.
+     * List repair orders: assigned, available (global pool), or history.
      */
     public function index(Request $request): JsonResponse
     {
-        $orders = RepairOrder::with([
+        $user = $request->user();
+        $scope = $request->query('scope', 'assigned');
+
+        $query = RepairOrder::with([
             'customer',
-            'device.category',
+            'category',
             'statusHistory',
             'diagnosis',
             'workNotes',
             'estimateRevisions',
             'qcChecks',
             'invoice',
-        ])
-            ->where('current_technician_id', $request->user()->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        ])->orderBy('created_at', 'desc');
+
+        if ($scope === 'available') {
+            $query->whereNull('current_technician_id')
+                ->whereNotIn('status', ['COMPLETED', 'DELIVERED', 'CANCELLED']);
+        } elseif ($scope === 'history') {
+            $query->where('current_technician_id', $user->id)
+                ->whereIn('status', ['COMPLETED', 'DELIVERED']);
+        } else {
+            $query->where('current_technician_id', $user->id)
+                ->whereNotIn('status', ['COMPLETED', 'DELIVERED', 'CANCELLED']);
+        }
+
+        $orders = $query->get();
 
         return response()->json([
             'data' => $orders->map(fn (RepairOrder $o) => [
@@ -38,13 +53,16 @@ class TechnicianOrderController extends Controller
                 'customer' => [
                     'name' => $o->customer?->name ?? 'Pelanggan',
                 ],
+                'device_name' => $o->device_name,
                 'device' => [
-                    'brand' => $o->device?->brand ?? '',
-                    'model' => $o->device?->model ?? '',
-                    'category_name' => $o->device?->category?->name ?? 'Umum',
+                    'brand' => '',
+                    'model' => $o->device_name,
+                    'name' => $o->device_name,
+                    'category_name' => $o->category?->name ?? 'Umum',
                 ],
                 'issue_description' => $o->issue_description,
                 'confirmed_arrival_date' => $o->confirmed_arrival_date?->format('Y-m-d'),
+                'current_technician_id' => $o->current_technician_id ? (string) $o->current_technician_id : null,
                 'diagnosis' => $o->diagnosis ? [
                     'customer_safe_summary' => $o->diagnosis->customer_safe_summary,
                 ] : null,
@@ -75,6 +93,54 @@ class TechnicianOrderController extends Controller
                 ] : null,
                 'created_at' => $o->created_at->toIso8601String(),
             ]),
+        ]);
+    }
+
+    /**
+     * Technician claims an unassigned order from the global queue.
+     */
+    public function claim(Request $request, RepairOrder $order): JsonResponse
+    {
+        $technician = $request->user();
+
+        if ($order->current_technician_id !== null) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ALREADY_ASSIGNED',
+                    'message' => 'Pesanan sudah diambil oleh teknisi lain.',
+                ],
+            ], 409);
+        }
+
+        if (in_array($order->status, ['COMPLETED', 'DELIVERED', 'CANCELLED'], true)) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATE',
+                    'message' => 'Pesanan dengan status ini tidak dapat diambil.',
+                ],
+            ], 422);
+        }
+
+        DB::transaction(function () use ($order, $technician) {
+            $order->current_technician_id = $technician->id;
+            $order->lock_version += 1;
+            $order->save();
+
+            OrderAssignmentEvent::create([
+                'order_id' => $order->id,
+                'previous_technician_id' => null,
+                'new_technician_id' => $technician->id,
+                'changed_by_user_id' => $technician->id,
+                'reason' => 'Teknisi mengklaim pekerjaan dari antrean global',
+            ]);
+        });
+
+        return response()->json([
+            'message' => 'Pekerjaan berhasil diambil ke antrean tugas Anda.',
+            'data' => [
+                'id' => (string) $order->id,
+                'current_technician_id' => (string) $technician->id,
+            ],
         ]);
     }
 }

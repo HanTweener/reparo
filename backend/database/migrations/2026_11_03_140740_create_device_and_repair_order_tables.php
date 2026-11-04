@@ -19,26 +19,13 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // 2. Customer Devices
-        Schema::create('customer_devices', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('customer_id')->constrained('users')->cascadeOnDelete();
-            $table->foreignId('category_id')->constrained('device_categories');
-            $table->string('brand');
-            $table->string('model');
-            $table->string('serial_number')->nullable();
-            $table->text('description')->nullable();
-            $table->timestamps();
-
-            $table->index(['customer_id', 'created_at']);
-        });
-
-        // 3. Repair Orders
+        // 2. Repair Orders (Direct device input without customer_devices)
         Schema::create('repair_orders', function (Blueprint $table) {
             $table->id();
             $table->string('public_reference', 64)->unique();
             $table->foreignId('customer_id')->constrained('users');
-            $table->foreignId('device_id')->constrained('customer_devices');
+            $table->string('device_name', 255);
+            $table->foreignId('category_id')->nullable()->constrained('device_categories')->nullOnDelete();
             $table->string('service_code', 32)->default('MAINTENANCE');
             $table->text('issue_description');
             $table->date('preferred_arrival_date');

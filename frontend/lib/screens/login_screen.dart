@@ -195,6 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       _buildQuickDemoChip('Pelanggan', 'customer@reparo.test', 'Password123!'),
                       _buildQuickDemoChip('Teknisi', 'technician@reparo.test', 'Password123!'),
+                      _buildQuickDemoChip('Kasir', 'cashier@reparo.test', 'Password123!'),
                       _buildQuickDemoChip('Admin', 'admin@reparo.test', 'Password123!'),
                     ],
                   ),

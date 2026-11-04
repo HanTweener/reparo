@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
+import 'screens/admin_accounts_screen.dart';
+import 'screens/admin_booking_screen.dart';
+import 'screens/admin_categories_screen.dart';
 import 'screens/admin_home.dart';
 import 'screens/admin_staff_screen.dart';
 import 'screens/customer_booking_screen.dart';
-import 'screens/customer_devices_screen.dart';
 import 'screens/customer_home.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/technician_home.dart';
+import 'screens/user_profile_screen.dart';
 import 'services/api_service.dart';
 import 'services/repair_service.dart';
+import 'services/technician_service.dart';
 import 'state/auth_state.dart';
 import 'theme/reparo_theme.dart';
 import 'widgets/app_shell.dart';
@@ -17,7 +21,12 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final apiService = ApiService();
   final repairService = RepairService();
-  final authState = AuthState(apiService: apiService, repairService: repairService);
+  final technicianService = TechnicianService();
+  final authState = AuthState(
+    apiService: apiService,
+    repairService: repairService,
+    technicianService: technicianService,
+  );
 
   runApp(ReparoApp(authState: authState));
 }
@@ -70,7 +79,9 @@ class _ReparoAppState extends State<ReparoApp> {
               },
               onSwitchRole: (role) {
                 auth.quickSwitchRole(role);
-                setState(() => _currentRoute = (role == 'ADMIN') ? 'queue' : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+                setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
+                    ? 'queue'
+                    : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
               },
               child: _buildRoleContent(auth),
             )
@@ -89,9 +100,55 @@ class _ReparoAppState extends State<ReparoApp> {
   Widget _buildRoleContent(AuthState auth) {
     final user = auth.currentUser!;
 
+    if (_currentRoute == 'profile') {
+      return UserProfileScreen(
+        user: user,
+        onSignOut: () {
+          auth.signOut();
+          setState(() => _currentRoute = 'orders');
+        },
+        onSwitchRole: (role) {
+          auth.quickSwitchRole(role);
+          setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
+              ? 'queue'
+              : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+        },
+        onBack: () {
+          setState(() {
+            if (user.isAdmin || user.isCashier) {
+              _currentRoute = 'queue';
+            } else if (user.isTechnician) {
+              _currentRoute = 'tasks';
+            } else {
+              _currentRoute = 'orders';
+            }
+          });
+        },
+      );
+    }
+
     if (user.isAdmin) {
+      if (_currentRoute == 'booking') {
+        return AdminBookingScreen(
+          repairService: auth.repairService,
+          onNavigate: (route) => setState(() => _currentRoute = route),
+        );
+      }
+      if (_currentRoute == 'categories') {
+        return AdminCategoriesScreen(
+          repairService: auth.repairService,
+          onBack: () => setState(() => _currentRoute = 'queue'),
+        );
+      }
       if (_currentRoute == 'staff') {
         return AdminStaffScreen(
+          apiService: auth.apiService,
+          onBack: () => setState(() => _currentRoute = 'queue'),
+        );
+      }
+      if (_currentRoute == 'accounts') {
+        return AdminAccountsScreen(
+          currentUser: user,
           apiService: auth.apiService,
           onBack: () => setState(() => _currentRoute = 'queue'),
         );
@@ -102,15 +159,31 @@ class _ReparoAppState extends State<ReparoApp> {
         repairService: auth.repairService,
         onNavigate: (route) => setState(() => _currentRoute = route),
       );
-    } else if (user.isTechnician) {
-      return TechnicianHome(user: user);
-    } else {
-      if (_currentRoute == 'devices') {
-        return CustomerDevicesScreen(
+    } else if (user.isCashier) {
+      if (_currentRoute == 'booking') {
+        return AdminBookingScreen(
           repairService: auth.repairService,
           onNavigate: (route) => setState(() => _currentRoute = route),
         );
-      } else if (_currentRoute == 'booking') {
+      }
+      return AdminHome(
+        user: user,
+        apiService: auth.apiService,
+        repairService: auth.repairService,
+        onNavigate: (route) => setState(() => _currentRoute = route),
+      );
+    } else if (user.isTechnician) {
+      final scope = _currentRoute == 'available'
+          ? 'available'
+          : (_currentRoute == 'history' ? 'history' : 'assigned');
+      return TechnicianHome(
+        key: ValueKey('tech_${user.id}_$scope'),
+        user: user,
+        technicianService: auth.technicianService,
+        initialScope: scope,
+      );
+    } else {
+      if (_currentRoute == 'booking') {
         return CustomerBookingScreen(
           repairService: auth.repairService,
           onNavigate: (route) => setState(() => _currentRoute = route),

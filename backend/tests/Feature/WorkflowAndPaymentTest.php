@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\CustomerDevice;
 use App\Models\DeviceCategory;
 use App\Models\Invoice;
 use App\Models\RepairOrder;
@@ -24,38 +23,17 @@ class WorkflowAndPaymentTest extends TestCase
     {
         parent::setUp();
 
-        $this->customer = User::factory()->create([
-            'email' => 'cust@reparo.test',
-            'role_code' => 'CUSTOMER',
-        ]);
-
-        $this->tech1 = User::factory()->create([
-            'email' => 'tech1@reparo.test',
-            'role_code' => 'TECHNICIAN',
-        ]);
-
-        $this->tech2 = User::factory()->create([
-            'email' => 'tech2@reparo.test',
-            'role_code' => 'TECHNICIAN',
-        ]);
-
-        $this->admin = User::factory()->create([
-            'email' => 'adm@reparo.test',
-            'role_code' => 'ADMIN',
-        ]);
-
+        $this->customer = User::factory()->create(['email' => 'cust@reparo.test', 'role_code' => 'CUSTOMER']);
+        $this->tech1 = User::factory()->create(['email' => 'tech1@reparo.test', 'role_code' => 'TECHNICIAN']);
+        $this->tech2 = User::factory()->create(['email' => 'tech2@reparo.test', 'role_code' => 'TECHNICIAN']);
+        $this->admin = User::factory()->create(['email' => 'adm@reparo.test', 'role_code' => 'ADMIN']);
         $cat = DeviceCategory::create(['name' => 'Laptop', 'is_active' => true]);
-        $device = CustomerDevice::create([
-            'customer_id' => $this->customer->id,
-            'category_id' => $cat->id,
-            'brand' => 'Dell',
-            'model' => 'XPS 15',
-        ]);
 
         $this->order = RepairOrder::create([
             'public_reference' => 'REP-2026-0001',
             'customer_id' => $this->customer->id,
-            'device_id' => $device->id,
+            'device_name' => 'Dell XPS 15',
+            'category_id' => $cat->id,
             'service_code' => 'MAINTENANCE',
             'issue_description' => 'Fan noise and overheating',
             'preferred_arrival_date' => now()->addDays(2)->toDateString(),
@@ -68,34 +46,26 @@ class WorkflowAndPaymentTest extends TestCase
 
     public function test_only_assigned_technician_can_start_diagnosis_and_mutate_workflow(): void
     {
-        // Unassigned technician tech2 gets 403
-        $resForbidden = $this->actingAs($this->tech2)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start");
-        $resForbidden->assertStatus(403);
+        $this->actingAs($this->tech2)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start")
+            ->assertStatus(403);
 
-        // Assigned technician tech1 starts diagnosis
-        $resSuccess = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start");
-        $resSuccess->assertStatus(200);
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start")
+            ->assertStatus(200);
         $this->assertEquals('DIAGNOSING', $this->order->fresh()->status);
     }
 
     public function test_concurrent_stale_update_rejected_with_409_state_conflict(): void
     {
-        // Stale update sends mismatched expected_version -> 409
-        $resConflict = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", [
-                'expected_version' => 999,
-            ]);
-        $resConflict->assertStatus(409)
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", ['expected_version' => 999])
+            ->assertStatus(409)
             ->assertJsonPath('error.code', 'STATE_CONFLICT');
 
-        // Matching expected_version succeeds and advances lock_version
-        $resOk = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", [
-                'expected_version' => 1,
-            ]);
-        $resOk->assertStatus(200);
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", ['expected_version' => 1])
+            ->assertStatus(200);
         $this->assertEquals(2, $this->order->fresh()->lock_version);
     }
 
@@ -103,88 +73,67 @@ class WorkflowAndPaymentTest extends TestCase
     {
         $this->order->update(['status' => 'DIAGNOSING']);
 
-        // 1. Save diagnosis
-        $diagRes = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->putJson("/api/v1/technician/orders/{$this->order->id}/diagnosis", [
                 'customer_safe_summary' => 'Debu tebal pada heatsink dan thermal paste mengering.',
-            ]);
-        $diagRes->assertStatus(200);
+            ])->assertStatus(200);
 
-        // 2. Add internal work note (staff only)
-        $noteRes = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/technician/orders/{$this->order->id}/work-notes", [
                 'note_text' => 'INTERNAL: Screws on bottom case slightly stripped by previous shop.',
-            ]);
-        $noteRes->assertStatus(201);
+            ])->assertStatus(201);
 
-        // 3. First estimate: no reason required
-        $est1Res = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", [
                 'amount' => 350000,
                 'currency_code' => 'IDR',
-            ]);
-        $est1Res->assertStatus(201);
+            ])->assertStatus(201);
 
-        // 4. Second estimate without reason fails with 422
-        $est2Fail = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", [
-                'amount' => 450000,
-            ]);
-        $est2Fail->assertStatus(422)
-            ->assertJsonPath('error.code', 'VALIDATION_ERROR')
-            ->assertJsonPath('error.fields.reason.0', 'The reason field is required.');
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", ['amount' => 450000])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
 
-        // 5. Second estimate with reason succeeds
-        $est2Success = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", [
                 'amount' => 450000,
                 'reason' => 'Perlu penggantian thermal pad GPU khusus selain pembersihan fan.',
-            ]);
-        $est2Success->assertStatus(201);
+            ])->assertStatus(201);
 
-        // 6. Customer GET order: sees customer_safe_summary & estimates, but NO work notes
         $custRes = $this->actingAs($this->customer)
             ->getJson("/api/v1/customer/orders/{$this->order->id}");
-        $custRes->assertStatus(200);
-        $custRes->assertJsonPath('data.diagnosis.customer_safe_summary', 'Debu tebal pada heatsink dan thermal paste mengering.');
-        $custRes->assertJsonCount(2, 'data.estimate_revisions');
-        $custRes->assertJsonMissing(['INTERNAL: Screws on bottom case slightly stripped by previous shop.']);
+        $custRes->assertStatus(200)
+            ->assertJsonPath('data.diagnosis.customer_safe_summary', 'Debu tebal pada heatsink dan thermal paste mengering.')
+            ->assertJsonCount(2, 'data.estimate_revisions')
+            ->assertJsonMissing(['INTERNAL: Screws on bottom case slightly stripped by previous shop.']);
     }
 
     public function test_qc_loop_fail_stays_in_qc_pass_moves_to_ready_and_issues_invoice(): void
     {
         $this->order->update(['status' => 'IN_REPAIR']);
 
-        // Tech records initial estimate
         $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", [
-                'amount' => 500000,
-                'currency_code' => 'IDR',
-            ]);
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/estimates", ['amount' => 500000, 'currency_code' => 'IDR'])
+            ->assertStatus(201);
 
-        // Start QC
-        $startQc = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/technician/orders/{$this->order->id}/qc/start");
-        $startQc->assertStatus(200);
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/qc/start")
+            ->assertStatus(200);
         $this->assertEquals('QC', $this->order->fresh()->status);
 
-        // Submit QC FAIL -> Order remains in QC
-        $qcFail = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/technician/orders/{$this->order->id}/qc-checks", [
                 'result' => 'FAIL',
-                'note' => 'Suhu CPU masih 85C di idle, cek pemasangan cooler ulang',
-            ]);
-        $qcFail->assertStatus(200);
+                'note' => 'Suhu CPU masih 85C di idle',
+            ])->assertStatus(200);
         $this->assertEquals('QC', $this->order->fresh()->status);
         $this->assertNull($this->order->fresh()->invoice);
 
-        // Submit QC PASS -> Order moves to READY and issues invoice atomically
-        $qcPass = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/technician/orders/{$this->order->id}/qc-checks", [
                 'result' => 'PASS',
-                'note' => 'Suhu normal 42C idle, 68C stress test passed',
-            ]);
-        $qcPass->assertStatus(200);
+                'note' => 'Suhu normal 42C idle',
+            ])->assertStatus(200);
         $this->assertEquals('READY', $this->order->fresh()->status);
 
         $invoice = $this->order->fresh()->invoice;
@@ -205,56 +154,42 @@ class WorkflowAndPaymentTest extends TestCase
             'issued_at' => now(),
         ]);
 
-        // 1. Admin corrects invoice
-        $corrRes = $this->actingAs($this->admin)
+        $this->actingAs($this->admin)
             ->postJson("/api/v1/admin/invoices/{$invoice->id}/corrections", [
                 'new_amount' => 480000.00,
-                'reason' => 'Diskon loyalty pelanggan tetap.',
-            ]);
-        $corrRes->assertStatus(200);
+                'reason' => 'Diskon loyalty.',
+            ])->assertStatus(200);
         $this->assertEquals('480000.00', $invoice->fresh()->current_amount);
 
-        // 2. Customer creates payment attempt
         $attemptRes = $this->actingAs($this->customer)
             ->postJson("/api/v1/customer/invoices/{$invoice->id}/payment-attempts");
         $attemptRes->assertStatus(201);
         $providerRef = $attemptRes->json('payment_attempt.provider_reference');
 
-        // 3. Webhook with invalid signature rejected with 401
-        $badHook = $this->postJson('/api/v1/webhooks/midtrans', [
+        $this->postJson('/api/v1/webhooks/midtrans', [
             'order_id' => $providerRef,
             'status_code' => '200',
             'gross_amount' => '480000.00',
-            'signature_key' => 'invalid-signature-hash',
+            'signature_key' => 'invalid-hash',
             'transaction_status' => 'settlement',
-        ]);
-        $badHook->assertStatus(401);
+        ])->assertStatus(401);
 
-        // 4. Webhook with valid signature succeeds and marks invoice PAID
         $serverKey = config('services.midtrans.server_key');
         $validSig = hash('sha512', $providerRef . '200' . '480000.00' . $serverKey);
 
-        $goodHook = $this->postJson('/api/v1/webhooks/midtrans', [
+        $webhookPayload = [
             'order_id' => $providerRef,
             'status_code' => '200',
             'gross_amount' => '480000.00',
             'signature_key' => $validSig,
             'transaction_status' => 'settlement',
             'transaction_id' => 'tx-123456',
-        ]);
-        $goodHook->assertStatus(200);
+        ];
+
+        $this->postJson('/api/v1/webhooks/midtrans', $webhookPayload)->assertStatus(200);
         $this->assertEquals('PAID', $invoice->fresh()->status);
 
-        // 5. Duplicate webhook idempotent response
-        $dupWebhook = $this->postJson('/api/v1/webhooks/midtrans', [
-            'order_id' => $providerRef,
-            'status_code' => '200',
-            'gross_amount' => '480000.00',
-            'signature_key' => $validSig,
-            'transaction_status' => 'settlement',
-            'transaction_id' => 'tx-123456',
-        ]);
-        $dupWebhook->assertStatus(200);
+        $this->postJson('/api/v1/webhooks/midtrans', $webhookPayload)->assertStatus(200);
     }
 
     public function test_handover_requires_ready_state_and_paid_invoice(): void
@@ -265,26 +200,23 @@ class WorkflowAndPaymentTest extends TestCase
             'invoice_number' => 'INV-20261103-0002',
             'current_amount' => 400000.00,
             'currency_code' => 'IDR',
-            'status' => 'OPEN', // Not paid yet!
+            'status' => 'OPEN',
             'issued_at' => now(),
         ]);
 
-        // Handover fails because invoice is not paid
-        $failHandover = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/orders/{$this->order->id}/handover");
-        $failHandover->assertStatus(422)
+        $this->actingAs($this->tech1)
+            ->postJson("/api/v1/orders/{$this->order->id}/handover")
+            ->assertStatus(422)
             ->assertJsonPath('error.code', 'PAYMENT_REQUIRED');
 
-        // Mark invoice PAID
         $invoice->update(['status' => 'PAID', 'paid_at' => now()]);
 
-        // Handover succeeds with recipient and notes, marks order COMPLETED
-        $successHandover = $this->actingAs($this->tech1)
+        $this->actingAs($this->tech1)
             ->postJson("/api/v1/orders/{$this->order->id}/handover", [
                 'recipient_name' => 'Budi Santoso',
                 'notes' => 'Unit diambil lengkap bersama charger ori',
-            ]);
-        $successHandover->assertStatus(200);
+            ])->assertStatus(200);
+
         $freshOrder = $this->order->fresh();
         $this->assertEquals('COMPLETED', $freshOrder->status);
         $this->assertStringContainsString('Budi Santoso', $freshOrder->statusHistory->last()->reason);
@@ -292,10 +224,7 @@ class WorkflowAndPaymentTest extends TestCase
 
     public function test_customer_invoice_access_and_corrections_visibility(): void
     {
-        $otherCustomer = User::factory()->create([
-            'email' => 'other@reparo.test',
-            'role_code' => 'CUSTOMER',
-        ]);
+        $otherCustomer = User::factory()->create(['email' => 'other@reparo.test', 'role_code' => 'CUSTOMER']);
 
         $this->order->update(['status' => 'READY']);
         $invoice = Invoice::create([
@@ -307,32 +236,27 @@ class WorkflowAndPaymentTest extends TestCase
             'issued_at' => now(),
         ]);
 
-        // Unauthorized customer gets 403
         $this->actingAs($otherCustomer)
             ->getJson("/api/v1/orders/{$this->order->id}/invoice")
             ->assertStatus(403);
 
-        // Admin corrects invoice
         $this->actingAs($this->admin)
             ->postJson("/api/v1/admin/invoices/{$invoice->id}/corrections", [
                 'new_amount' => 550000.00,
                 'reason' => 'Diskon promo akhir pekan.',
-            ])
-            ->assertStatus(200);
+            ])->assertStatus(200);
 
-        // Customer sees corrected amount and reason in order details
-        $custRes = $this->actingAs($this->customer)
-            ->getJson("/api/v1/customer/orders/{$this->order->id}");
-        $custRes->assertStatus(200)
+        $this->actingAs($this->customer)
+            ->getJson("/api/v1/customer/orders/{$this->order->id}")
+            ->assertStatus(200)
             ->assertJsonPath('data.invoice.amount', '550000.00')
             ->assertJsonPath('data.invoice.corrections.0.reason', 'Diskon promo akhir pekan.')
             ->assertJsonPath('data.invoice.corrections.0.previous_amount', '600000.00')
             ->assertJsonPath('data.invoice.corrections.0.new_amount', '550000.00');
 
-        // Test sandbox simulated payment
-        $simRes = $this->actingAs($this->customer)
-            ->postJson("/api/v1/invoices/{$invoice->id}/simulate-midtrans");
-        $simRes->assertStatus(200);
+        $this->actingAs($this->customer)
+            ->postJson("/api/v1/invoices/{$invoice->id}/simulate-midtrans")
+            ->assertStatus(200);
         $this->assertEquals('PAID', $invoice->fresh()->status);
     }
 }

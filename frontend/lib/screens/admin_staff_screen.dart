@@ -79,17 +79,18 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                     validator: (v) => (v == null || v.length < 8) ? 'Min 8 karakter' : null,
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    decoration: const InputDecoration(labelText: 'Peran Akun Staf'),
-                    items: const [
-                      DropdownMenuItem(value: 'TECHNICIAN', child: Text('Teknisi (TECHNICIAN)')),
-                      DropdownMenuItem(value: 'ADMIN', child: Text('Administrator (ADMIN)')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setDialogState(() => selectedRole = val);
-                    },
-                  ),
+                    DropdownButtonFormField<String>(
+                      value: selectedRole,
+                      decoration: const InputDecoration(labelText: 'Peran Akun Staf'),
+                      items: const [
+                        DropdownMenuItem(value: 'TECHNICIAN', child: Text('Teknisi (TECHNICIAN)')),
+                        DropdownMenuItem(value: 'CASHIER', child: Text('Kasir (CASHIER)')),
+                        DropdownMenuItem(value: 'ADMIN', child: Text('Administrator (ADMIN)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => selectedRole = val);
+                      },
+                    ),
                 ],
               ),
             ),
@@ -185,8 +186,22 @@ class _AdminStaffScreenState extends State<AdminStaffScreen> {
                         const SizedBox(width: 8),
                         StatusBadge(
                           label: staff.roleLabel,
-                          variant: staff.isAdmin ? BadgeVariant.warning : BadgeVariant.neutral,
+                          variant: staff.isAdmin ? BadgeVariant.warning : (staff.isCashier ? BadgeVariant.accent : BadgeVariant.neutral),
                         ),
+                        if (staff.isTechnician) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: ReparoTheme.statusSuccess.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${staff.completedTasksCount} Selesai',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ReparoTheme.statusSuccess),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     subtitle: Text(staff.email, style: const TextStyle(fontSize: 12, color: ReparoTheme.textMuted)),

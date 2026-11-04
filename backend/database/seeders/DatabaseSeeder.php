@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\CustomerDevice;
 use App\Models\DeviceCategory;
 use App\Models\Diagnosis;
 use App\Models\EstimateRevision;
@@ -58,31 +57,29 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
+        $cashier = User::updateOrCreate(
+            ['email' => 'cashier@reparo.test'],
+            [
+                'name' => 'Dewi Lestari (Kasir)',
+                'password' => $defaultPassword,
+                'role_code' => 'CASHIER',
+                'email_verified_at' => now(),
+                'is_active' => true,
+            ]
+        );
+
         // 2. Standard device categories
         $catLaptop = DeviceCategory::firstOrCreate(['name' => 'Laptop'], ['is_active' => true]);
         $catPhone = DeviceCategory::firstOrCreate(['name' => 'Smartphone'], ['is_active' => true]);
         DeviceCategory::firstOrCreate(['name' => 'PC Desktop'], ['is_active' => true]);
 
-        // 3. Customer registered devices
-        $dev1 = CustomerDevice::firstOrCreate(
-            ['customer_id' => $customer->id, 'brand' => 'ASUS', 'model' => 'ROG Zephyrus G14'],
-            ['category_id' => $catLaptop->id, 'serial_number' => 'SN-ROG-001', 'description' => 'Laptop gaming putih']
-        );
-        $dev2 = CustomerDevice::firstOrCreate(
-            ['customer_id' => $customer->id, 'brand' => 'Apple', 'model' => 'MacBook Pro M2 14"'],
-            ['category_id' => $catLaptop->id, 'serial_number' => 'SN-MBP-002', 'description' => 'Space Grey']
-        );
-        $dev3 = CustomerDevice::firstOrCreate(
-            ['customer_id' => $customer->id, 'brand' => 'Samsung', 'model' => 'Galaxy S23 Ultra'],
-            ['category_id' => $catPhone->id, 'serial_number' => 'SN-S23-003', 'description' => 'Phantom Black']
-        );
-
-        // 4. Order 1: BOOKED
+        // 3. Order 1: BOOKED (Global Pool, no technician assigned)
         $order1 = RepairOrder::updateOrCreate(
             ['public_reference' => 'REP-2026-0001'],
             [
                 'customer_id' => $customer->id,
-                'device_id' => $dev1->id,
+                'device_name' => 'ASUS ROG Zephyrus G14',
+                'category_id' => $catLaptop->id,
                 'service_code' => 'MAINTENANCE',
                 'issue_description' => 'Pembersihan debu heatsink dan penggantian thermal paste pendingin.',
                 'preferred_arrival_date' => now()->addDays(2)->toDateString(),
@@ -97,12 +94,13 @@ class DatabaseSeeder extends Seeder
             ['changed_by_user_id' => $customer->id, 'reason' => 'Pemesanan baru dibuat oleh Pelanggan.', 'created_at' => now()->subHours(5)]
         );
 
-        // 5. Order 2: DIAGNOSING
+        // 4. Order 2: DIAGNOSING (Assigned to technician)
         $order2 = RepairOrder::updateOrCreate(
             ['public_reference' => 'REP-2026-0002'],
             [
                 'customer_id' => $customer->id,
-                'device_id' => $dev2->id,
+                'device_name' => 'MacBook Pro M2 14"',
+                'category_id' => $catLaptop->id,
                 'service_code' => 'MAINTENANCE',
                 'issue_description' => 'Baterai cepat drop dan kipas berbunyi keras saat rendering video.',
                 'preferred_arrival_date' => now()->addDay()->toDateString(),
@@ -118,12 +116,13 @@ class DatabaseSeeder extends Seeder
             ['previous_status' => 'BOOKED', 'changed_by_user_id' => $technician->id, 'reason' => 'Pengecekan fisik dan sensor suhu dimulai.', 'created_at' => now()->subHours(2)]
         );
 
-        // 6. Order 3: READY (QC Passed, Invoice Issued OPEN)
+        // 5. Order 3: READY (QC Passed, Invoice Issued OPEN)
         $order3 = RepairOrder::updateOrCreate(
             ['public_reference' => 'REP-2026-0003'],
             [
                 'customer_id' => $customer->id,
-                'device_id' => $dev3->id,
+                'device_name' => 'Samsung Galaxy S23 Ultra',
+                'category_id' => $catPhone->id,
                 'service_code' => 'MAINTENANCE',
                 'issue_description' => 'Perawatan rutin: pembersihan port pengisian daya dan speaker grill.',
                 'preferred_arrival_date' => now()->toDateString(),

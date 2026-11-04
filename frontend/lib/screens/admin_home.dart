@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/payment_service.dart';
 import '../services/repair_service.dart';
 import '../theme/reparo_theme.dart';
+import '../widgets/admin_stats_bar.dart';
 import '../widgets/status_badge.dart';
 import 'admin_order_dialogs.dart';
 
@@ -28,18 +29,35 @@ class AdminHome extends StatefulWidget {
 class _AdminHomeState extends State<AdminHome> {
   final _paymentService = PaymentService();
   List<Map<String, dynamic>> _orders = [];
+  Map<String, dynamic> _stats = {'incoming': 0, 'in_progress': 0, 'completed': 0, 'total': 0};
+  String _statsPeriod = 'all';
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadQueue();
+    _loadAll();
   }
 
-  Future<void> _loadQueue() async {
+  Future<void> _loadAll() async {
     setState(() => _isLoading = true);
-    final list = await widget.repairService.getAdminOrders();
-    if (mounted) setState(() { _orders = list; _isLoading = false; });
+    final results = await Future.wait([
+      widget.repairService.getAdminOrders(),
+      widget.repairService.getStatistics(period: _statsPeriod),
+    ]);
+    if (mounted) {
+      setState(() {
+        _orders = results[0] as List<Map<String, dynamic>>;
+        _stats = results[1] as Map<String, dynamic>;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _onPeriodChanged(String p) async {
+    setState(() => _statsPeriod = p);
+    final stats = await widget.repairService.getStatistics(period: p);
+    if (mounted) setState(() => _stats = stats);
   }
 
   @override
@@ -59,29 +77,44 @@ class _AdminHomeState extends State<AdminHome> {
                     Text('Antrean Operasional: ${widget.user.name}',
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
-                    const Text('Kelola penjadwalan kedatangan, penugasan teknisi, dan permohonan pembatalan',
-                        style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),
+                    Text(
+                      widget.user.isCashier
+                          ? 'Peran Kasir: buat pesanan walk-in, pantau antrean, dan serah terima unit.'
+                          : 'Peran Admin: pantau antrean global, penjadwalan, staf, dan finansial.',
+                      style: const TextStyle(fontSize: 13, color: ReparoTheme.textMuted),
+                    ),
                   ],
                 ),
               ),
               Wrap(
                 spacing: 8,
                 children: [
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.people_outline, size: 16),
-                    label: const Text('Kelola Staf', style: TextStyle(fontSize: 13)),
-                    onPressed: () => widget.onNavigate('staff'),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ReparoTheme.accent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ReparoTheme.radiusControl)),
+                    ),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Buat Booking Baru', style: TextStyle(fontSize: 13)),
+                    onPressed: () => widget.onNavigate('booking'),
                   ),
                   OutlinedButton.icon(
                     icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('Segarkan', style: TextStyle(fontSize: 13)),
-                    onPressed: _loadQueue,
+                    onPressed: _loadAll,
                   ),
                 ],
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          AdminStatsBar(
+            stats: _stats,
+            currentPeriod: _statsPeriod,
+            onPeriodChanged: _onPeriodChanged,
+          ),
+          const SizedBox(height: 16),
           if (_isLoading)
             const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
           else if (_orders.isEmpty)
@@ -119,6 +152,9 @@ class _AdminHomeState extends State<AdminHome> {
     final hasCancel = o['has_pending_cancellation'] == true;
     final tech = o['technician'] as Map<String, dynamic>?;
     final inv = o['invoice'] as Map<String, dynamic>?;
+    final deviceStr = (o['device_name'] as String?)?.isNotEmpty == true
+        ? o['device_name']
+        : '${o['device']?['brand'] ?? ''} ${o['device']?['model'] ?? ''}'.trim();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -135,8 +171,7 @@ class _AdminHomeState extends State<AdminHome> {
             children: [
               Row(
                 children: [
-                  Text(o['public_reference'] ?? '',
-                      style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text(o['public_reference'] ?? '', style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontWeight: FontWeight.w700, fontSize: 15)),
                   const SizedBox(width: 8),
                   StatusBadge(label: status, variant: _getVariant(status)),
                   if (hasCancel) ...[
@@ -146,20 +181,13 @@ class _AdminHomeState extends State<AdminHome> {
                 ],
               ),
               Text(
-                tech != null ? 'Teknisi: ${tech['name']}' : 'Belum Ditugaskan',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: tech != null ? ReparoTheme.accent : ReparoTheme.statusWarning,
-                ),
+                tech != null ? 'Teknisi: ${tech['name']}' : 'Antrean Global (Belum Diambil)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: tech != null ? ReparoTheme.accent : ReparoTheme.statusWarning),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Pelanggan: ${o['customer']?['name'] ?? '-'} • Perangkat: ${o['device']?['brand'] ?? ''} ${o['device']?['model'] ?? ''}',
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-          ),
+          Text('Pelanggan: ${o['customer']?['name'] ?? '-'} • Perangkat: $deviceStr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
           Text(
             'Jadwal: ${o['confirmed_arrival_date'] ?? o['preferred_arrival_date'] ?? 'Belum ada jadwal'} ' +
@@ -176,7 +204,7 @@ class _AdminHomeState extends State<AdminHome> {
                   const SizedBox(width: 8),
                   InkWell(
                     onTap: () => AdminOrderDialogs.showInvoiceCorrectionDialog(
-                      context, inv['id'].toString(), double.tryParse(inv['amount'].toString()) ?? 0, _paymentService, _loadQueue,
+                      context, inv['id'].toString(), double.tryParse(inv['amount'].toString()) ?? 0, _paymentService, _loadAll,
                     ),
                     child: const Text('Koreksi Nilai', style: TextStyle(fontSize: 11, color: ReparoTheme.accent, decoration: TextDecoration.underline)),
                   ),
@@ -192,36 +220,24 @@ class _AdminHomeState extends State<AdminHome> {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                icon: const Icon(Icons.person_add, size: 14),
-                label: Text(tech != null ? 'Ganti Teknisi' : 'Tugaskan Teknisi', style: const TextStyle(fontSize: 12)),
-                onPressed: () => AdminOrderDialogs.showAssignDialog(context, orderId, widget.apiService, widget.repairService, _loadQueue),
-              ),
-              OutlinedButton.icon(
                 icon: const Icon(Icons.edit_calendar, size: 14),
                 label: const Text('Konfirmasi Jadwal', style: TextStyle(fontSize: 12)),
-                onPressed: () => AdminOrderDialogs.showConfirmScheduleDialog(context, orderId, widget.repairService, _loadQueue),
+                onPressed: () => AdminOrderDialogs.showConfirmScheduleDialog(context, orderId, widget.repairService, _loadAll),
               ),
               if (hasCancel)
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: ReparoTheme.statusError, foregroundColor: Colors.white),
                   icon: const Icon(Icons.warning, size: 14),
                   label: const Text('Tinjau Pembatalan', style: TextStyle(fontSize: 12)),
-                  onPressed: () => AdminOrderDialogs.showCancellationDialog(context, orderId, widget.repairService, _loadQueue),
+                  onPressed: () => AdminOrderDialogs.showCancellationDialog(context, orderId, widget.repairService, _loadAll),
                 ),
               if (status == 'READY' && inv != null && inv['status'] == 'PAID')
                 ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ReparoTheme.statusSuccess,
-                    foregroundColor: Colors.white,
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: ReparoTheme.statusSuccess, foregroundColor: Colors.white),
                   icon: const Icon(Icons.check_circle_outline, size: 14),
                   label: const Text('Serah Terima Fisik', style: TextStyle(fontSize: 12)),
                   onPressed: () => AdminOrderDialogs.showHandoverDialog(
-                    context,
-                    orderId,
-                    o['customer']?['name'] ?? 'Pelanggan',
-                    widget.repairService,
-                    _loadQueue,
+                    context, orderId, o['customer']?['name'] ?? 'Pelanggan', widget.repairService, _loadAll,
                     expectedVersion: o['lock_version'] is int ? o['lock_version'] as int : null,
                   ),
                 ),
@@ -233,14 +249,9 @@ class _AdminHomeState extends State<AdminHome> {
   }
 
   BadgeVariant _getVariant(String status) {
-    switch (status) {
-      case 'CANCELLED': return BadgeVariant.error;
-      case 'READY': return BadgeVariant.success;
-      case 'COMPLETED': return BadgeVariant.success;
-      case 'DIAGNOSING': return BadgeVariant.neutral;
-      case 'IN_REPAIR': return BadgeVariant.warning;
-      case 'QC': return BadgeVariant.warning;
-      default: return BadgeVariant.neutral;
-    }
+    if (status == 'READY' || status == 'COMPLETED') return BadgeVariant.success;
+    if (status == 'IN_REPAIR' || status == 'QC') return BadgeVariant.warning;
+    if (status == 'CANCELLED') return BadgeVariant.error;
+    return BadgeVariant.neutral;
   }
 }

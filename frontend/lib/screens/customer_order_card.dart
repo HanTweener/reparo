@@ -54,8 +54,10 @@ class CustomerOrderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          Text('Perangkat: ${device?['brand'] ?? ''} ${device?['model'] ?? ''}',
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          Text(
+            'Perangkat: ${(order['device_name'] as String?)?.isNotEmpty == true ? order['device_name'] : '${device?['brand'] ?? ''} ${device?['model'] ?? ''}'.trim()}',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
           const SizedBox(height: 4),
           Text('Keluhan: ${order['issue_description'] ?? '—'}',
               style: const TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),

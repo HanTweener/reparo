@@ -15,7 +15,8 @@ class RepairOrder extends Model
     protected $fillable = [
         'public_reference',
         'customer_id',
-        'device_id',
+        'device_name',
+        'category_id',
         'service_code',
         'issue_description',
         'preferred_arrival_date',
@@ -40,9 +41,19 @@ class RepairOrder extends Model
         return $this->belongsTo(User::class, 'customer_id');
     }
 
-    public function device(): BelongsTo
+    public function category(): BelongsTo
     {
-        return $this->belongsTo(CustomerDevice::class, 'device_id');
+        return $this->belongsTo(DeviceCategory::class, 'category_id');
+    }
+
+    public function getDeviceAttribute(): array
+    {
+        return [
+            'id' => '',
+            'brand' => '',
+            'model' => $this->device_name,
+            'category_name' => $this->category?->name ?? 'Perangkat',
+        ];
     }
 
     public function technician(): BelongsTo

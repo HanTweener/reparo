@@ -51,4 +51,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->role_code === 'ADMIN';
     }
+
+    public function isCashier(): bool
+    {
+        return $this->role_code === 'CASHIER';
+    }
+
+    public function isAdminOrCashier(): bool
+    {
+        return in_array($this->role_code, ['ADMIN', 'CASHIER'], true);
+    }
 }

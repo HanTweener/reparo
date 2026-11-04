@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CancellationRequest;
-use App\Models\CustomerDevice;
 use App\Models\OrderAssignmentEvent;
 use App\Models\OrderStatusHistory;
 use App\Models\RepairOrder;
@@ -21,9 +20,8 @@ class AdminOrderController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = RepairOrder::with(['customer', 'device.category', 'technician', 'invoice', 'cancellationRequests' => function ($q) {
-            $q->where('decision', 'PENDING');
-        }])->orderBy('created_at', 'desc');
+        $query = RepairOrder::with(['customer', 'category', 'technician', 'invoice', 'cancellationRequests' => fn ($q) => $q->where('decision', 'PENDING')])
+            ->orderBy('created_at', 'desc');
 
         if ($request->has('status')) {
             $query->where('status', $request->query('status'));
@@ -38,29 +36,13 @@ class AdminOrderController extends Controller
                 'status' => $o->status,
                 'lock_version' => $o->lock_version,
                 'service_code' => $o->service_code,
-                'customer' => [
-                    'id' => (string) $o->customer_id,
-                    'name' => $o->customer?->name ?? 'Pelanggan',
-                    'email' => $o->customer?->email ?? '',
-                ],
-                'device' => [
-                    'id' => (string) $o->device_id,
-                    'brand' => $o->device?->brand ?? '',
-                    'model' => $o->device?->model ?? '',
-                    'category_name' => $o->device?->category?->name ?? 'Umum',
-                ],
+                'customer' => ['id' => (string) $o->customer_id, 'name' => $o->customer?->name ?? 'Pelanggan', 'email' => $o->customer?->email ?? ''],
+                'device_name' => $o->device_name,
+                'device' => ['id' => '', 'brand' => '', 'model' => $o->device_name, 'name' => $o->device_name, 'category_name' => $o->category?->name ?? 'Umum'],
                 'preferred_arrival_date' => $o->preferred_arrival_date?->format('Y-m-d'),
                 'confirmed_arrival_date' => $o->confirmed_arrival_date?->format('Y-m-d'),
-                'technician' => $o->technician ? [
-                    'id' => (string) $o->technician->id,
-                    'name' => $o->technician->name,
-                ] : null,
-                'invoice' => $o->invoice ? [
-                    'id' => (string) $o->invoice->id,
-                    'invoice_number' => $o->invoice->invoice_number,
-                    'amount' => $o->invoice->current_amount,
-                    'status' => $o->invoice->status,
-                ] : null,
+                'technician' => $o->technician ? ['id' => (string) $o->technician->id, 'name' => $o->technician->name] : null,
+                'invoice' => $o->invoice ? ['id' => (string) $o->invoice->id, 'invoice_number' => $o->invoice->invoice_number, 'amount' => $o->invoice->current_amount, 'status' => $o->invoice->status] : null,
                 'has_pending_cancellation' => $o->cancellationRequests->isNotEmpty(),
                 'created_at' => $o->created_at->toIso8601String(),
             ]),
@@ -68,17 +50,114 @@ class AdminOrderController extends Controller
     }
 
     /**
+     * Queue statistics with period filter (day, week, month, all).
+     */
+    public function statistics(Request $request): JsonResponse
+    {
+        $period = $request->query('period', 'all');
+        $query = RepairOrder::query();
+
+        if ($period === 'day') {
+            $query->whereDate('created_at', today());
+        } elseif ($period === 'week') {
+            $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+        } elseif ($period === 'month') {
+            $query->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()]);
+        }
+
+        $allOrders = $query->get(['id', 'status']);
+
+        return response()->json([
+            'data' => [
+                'period' => $period,
+                'incoming' => $allOrders->whereIn('status', ['BOOKED', 'ARRIVED'])->count(),
+                'in_progress' => $allOrders->whereIn('status', ['DIAGNOSING', 'ESTIMATED', 'IN_REPAIR', 'QC'])->count(),
+                'completed' => $allOrders->whereIn('status', ['READY', 'COMPLETED', 'DELIVERED'])->count(),
+                'cancelled' => $allOrders->where('status', 'CANCELLED')->count(),
+                'total' => $allOrders->count(),
+            ],
+        ]);
+    }
+
+    /**
+     * Admin or Cashier creates a new booking (e.g. walk-in customer).
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_name' => ['required', 'string', 'max:255'],
+            'customer_email' => ['nullable', 'email', 'max:255'],
+            'device_name' => ['required', 'string', 'min:3', 'max:255'],
+            'category_id' => ['nullable', 'exists:device_categories,id'],
+            'service_code' => ['nullable', 'string', 'in:MAINTENANCE,REPAIR,DIAGNOSIS'],
+            'issue_description' => ['required', 'string', 'min:5', 'max:1000'],
+            'preferred_arrival_date' => ['required', 'date'],
+        ]);
+
+        $admin = $request->user();
+        $email = strtolower(trim($validated['customer_email'] ?? ''));
+        if (empty($email)) {
+            $email = 'walkin_' . time() . '_' . rand(100, 999) . '@reparo.test';
+        }
+
+        $customer = User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name' => $validated['customer_name'],
+                'password' => bcrypt('Password123!'),
+                'role_code' => 'CUSTOMER',
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]
+        );
+
+        $order = DB::transaction(function () use ($admin, $customer, $validated) {
+            $reference = 'REP-' . date('Y') . '-' . str_pad((string) (RepairOrder::count() + 1), 4, '0', STR_PAD_LEFT);
+
+            $order = RepairOrder::create([
+                'public_reference' => $reference,
+                'customer_id' => $customer->id,
+                'device_name' => trim($validated['device_name']),
+                'category_id' => $validated['category_id'] ?? null,
+                'service_code' => $validated['service_code'] ?? 'MAINTENANCE',
+                'issue_description' => trim($validated['issue_description']),
+                'preferred_arrival_date' => $validated['preferred_arrival_date'],
+                'confirmed_arrival_date' => $validated['preferred_arrival_date'],
+                'status' => 'BOOKED',
+                'current_technician_id' => null,
+                'created_by_user_id' => $admin->id,
+                'lock_version' => 1,
+            ]);
+
+            OrderStatusHistory::create([
+                'order_id' => $order->id,
+                'previous_status' => null,
+                'new_status' => 'BOOKED',
+                'changed_by_user_id' => $admin->id,
+                'reason' => 'Booking dibuat oleh Admin/Kasir.',
+                'created_at' => now(),
+            ]);
+
+            return $order;
+        });
+
+        return response()->json([
+            'data' => [
+                'id' => (string) $order->id,
+                'public_reference' => $order->public_reference,
+                'status' => $order->status,
+                'message' => 'Pesanan walk-in ' . $order->public_reference . ' berhasil dibuat.',
+            ],
+        ], 201);
+    }
+
+    /**
      * Admin confirms preferred arrival date.
      */
     public function confirmSchedule(Request $request, RepairOrder $order): JsonResponse
     {
-        $validated = $request->validate([
-            'confirmed_arrival_date' => ['required', 'date'],
-        ]);
-
-        $order->update([
-            'confirmed_arrival_date' => $validated['confirmed_arrival_date'],
-        ]);
+        $validated = $request->validate(['confirmed_arrival_date' => ['required', 'date']]);
+        $order->update(['confirmed_arrival_date' => $validated['confirmed_arrival_date']]);
 
         return response()->json([
             'data' => [

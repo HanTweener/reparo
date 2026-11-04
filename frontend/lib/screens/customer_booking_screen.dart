@@ -19,43 +19,48 @@ class CustomerBookingScreen extends StatefulWidget {
 
 class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _deviceNameCtrl = TextEditingController();
   final _issueCtrl = TextEditingController();
   DateTime _preferredDate = DateTime.now().add(const Duration(days: 1));
-  List<Map<String, dynamic>> _devices = [];
-  String? _selectedDeviceId;
+  List<Map<String, dynamic>> _categories = [];
+  String? _selectedCategoryId;
+  String _selectedServiceCode = 'MAINTENANCE';
   bool _isLoading = true;
   bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
-    _loadDevices();
+    _loadCategories();
   }
 
-  Future<void> _loadDevices() async {
-    final list = await widget.repairService.getCustomerDevices();
+  @override
+  void dispose() {
+    _deviceNameCtrl.dispose();
+    _issueCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCategories() async {
+    final list = await widget.repairService.getCategories();
     if (mounted) {
       setState(() {
-        _devices = list;
-        if (list.isNotEmpty) _selectedDeviceId = list.first['id'].toString();
+        _categories = list;
+        if (list.isNotEmpty) _selectedCategoryId = list.first['id'].toString();
         _isLoading = false;
       });
     }
   }
 
   void _submit() async {
-    if (_selectedDeviceId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan daftarkan perangkat terlebih dahulu.')),
-      );
-      return;
-    }
-
     if (_formKey.currentState?.validate() ?? false) {
       setState(() => _isSubmitting = true);
-      final dateStr = '${_preferredDate.year}-${_preferredDate.month.toString().padLeft(2, '0')}-${_preferredDate.day.toString().padLeft(2, '0')}';
-      final res = await widget.repairService.bookOrder(
-        deviceId: _selectedDeviceId!,
+      final dateStr =
+          '${_preferredDate.year}-${_preferredDate.month.toString().padLeft(2, '0')}-${_preferredDate.day.toString().padLeft(2, '0')}';
+      final res = await widget.repairService.createCustomerBooking(
+        deviceName: _deviceNameCtrl.text.trim(),
+        categoryId: _selectedCategoryId,
+        serviceCode: _selectedServiceCode,
         issueDescription: _issueCtrl.text.trim(),
         preferredArrivalDate: dateStr,
       );
@@ -64,7 +69,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       if (mounted) {
         if (res['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(res['data']['message'] ?? 'Booking berhasil dibuat.')),
+            SnackBar(content: Text(res['data']?['message'] ?? 'Booking berhasil dibuat.')),
           );
           widget.onNavigate('orders');
         } else {
@@ -82,44 +87,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_devices.isEmpty) {
-      return Center(
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          constraints: const BoxConstraints(maxWidth: 480),
-          decoration: BoxDecoration(
-            color: ReparoTheme.surface,
-            borderRadius: BorderRadius.circular(ReparoTheme.radiusSheet),
-            border: Border.all(color: ReparoTheme.border),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.devices, size: 48, color: ReparoTheme.textMuted),
-              const SizedBox(height: 16),
-              const Text('Belum Ada Perangkat Terdaftar', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-              const Text(
-                'Anda harus mendaftarkan perangkat terlebih dahulu sebelum dapat membuat pesanan maintenance.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted),
-              ),
-              const SizedBox(height: 20),
-              ReparoButton(
-                label: 'Daftarkan Perangkat Baru',
-                onPressed: () => widget.onNavigate('devices'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 600),
+          constraints: const BoxConstraints(maxWidth: 580),
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: ReparoTheme.surface,
@@ -129,88 +101,129 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           child: Form(
             key: _formKey,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Booking Layanan Maintenance', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
                 const Text(
-                  'Layanan tunggal standar Reparo untuk pemeliharaan dan perbaikan perangkat',
+                  'Buat Janji Perbaikan Baru',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ReparoTheme.textPrimary),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Tulis rincian perangkat dan keluhan Anda secara langsung tanpa perlu registrasi perangkat terpisah.',
                   style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted),
                 ),
                 const SizedBox(height: 24),
 
-                DropdownButtonFormField<String>(
-                  value: _selectedDeviceId,
-                  decoration: const InputDecoration(labelText: 'Pilih Perangkat Anda'),
-                  items: _devices
-                      .map((d) => DropdownMenuItem(
-                            value: d['id'].toString(),
-                            child: Text('${d['brand']} ${d['model']} (${d['category_name'] ?? 'Umum'})'),
-                          ))
-                      .toList(),
-                  onChanged: (val) => setState(() => _selectedDeviceId = val),
+                // Manual Device Name Input
+                TextFormField(
+                  controller: _deviceNameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama & Tipe Perangkat (Wajib)',
+                    hintText: 'Contoh: Laptop ASUS ROG Zephyrus G14, iPhone 13 Pro',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().length < 3) {
+                      return 'Masukkan nama dan tipe perangkat minimal 3 karakter.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
+                // Category & Service Code Selection
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedCategoryId,
+                        decoration: const InputDecoration(labelText: 'Kategori Perangkat'),
+                        items: _categories.map((c) {
+                          return DropdownMenuItem(value: c['id'].toString(), child: Text(c['name'] as String));
+                        }).toList(),
+                        onChanged: (v) => setState(() => _selectedCategoryId = v),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedServiceCode,
+                        decoration: const InputDecoration(labelText: 'Jenis Layanan'),
+                        items: const [
+                          DropdownMenuItem(value: 'MAINTENANCE', child: Text('Perawatan (Cleaning)')),
+                          DropdownMenuItem(value: 'REPAIR', child: Text('Perbaikan Komponen')),
+                          DropdownMenuItem(value: 'DIAGNOSIS', child: Text('Diagnosis Menyeluruh')),
+                        ],
+                        onChanged: (v) => setState(() => _selectedServiceCode = v ?? 'MAINTENANCE'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Issue Description
                 TextFormField(
                   controller: _issueCtrl,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    labelText: 'Keluhan / Deskripsi Masalah',
-                    hintText: 'Jelaskan gejala kerusakan fisik, suara, suhu, atau performa...',
+                    labelText: 'Keluhan & Gejala Kerusakan (Wajib)',
+                    hintText: 'Jelaskan masalah secara ringkas, misal: suhu panas, restart sendiri, layar bergaris...',
                   ),
-                  validator: (v) => (v == null || v.trim().length < 5) ? 'Jelaskan keluhan minimal 5 karakter' : null,
+                  validator: (v) {
+                    if (v == null || v.trim().length < 5) {
+                      return 'Deskripsi keluhan minimal 5 karakter.';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
+
+                // Arrival Date Picker
+                InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _preferredDate,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                    );
+                    if (picked != null) setState(() => _preferredDate = picked);
+                  },
+                  borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Rencana Kedatangan Unit',
+                      suffixIcon: Icon(Icons.calendar_today, size: 18),
+                    ),
+                    child: Text(
+                      '${_preferredDate.day}/${_preferredDate.month}/${_preferredDate.year}',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
 
                 Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Preferensi Tanggal Kedatangan', style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${_preferredDate.day}/${_preferredDate.month}/${_preferredDate.year}',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, fontFamily: ReparoTheme.fontMono),
-                          ),
-                        ],
+                      child: OutlinedButton(
+                        onPressed: () => widget.onNavigate('orders'),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ReparoTheme.radiusControl)),
+                        ),
+                        child: const Text('Batal'),
                       ),
                     ),
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.calendar_today, size: 16),
-                      label: const Text('Pilih Tanggal'),
-                      onPressed: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _preferredDate,
-                          firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 60)),
-                        );
-                        if (picked != null) setState(() => _preferredDate = picked);
-                      },
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ReparoButton(
+                        label: 'Kirim Pemesanan',
+                        isLoading: _isSubmitting,
+                        onPressed: _submit,
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: ReparoTheme.surfaceRaised,
-                    borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
-                  ),
-                  child: const Text(
-                    'Catatan: Tanggal kedatangan yang dipilih adalah permohonan. Jadwal resmi akan dikonfirmasi oleh Administrator.',
-                    style: TextStyle(fontSize: 12, color: ReparoTheme.textMuted),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                ReparoButton(
-                  label: 'Kirim Permohonan Booking',
-                  onPressed: _submit,
-                  isLoading: _isSubmitting,
                 ),
               ],
             ),
@@ -220,4 +233,3 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 }
-

@@ -32,72 +32,39 @@ class RepairService {
       }
     } catch (_) {}
     return [
-      {'id': '1', 'name': 'Laptop'},
-      {'id': '2', 'name': 'Smartphone'},
-      {'id': '3', 'name': 'Tablet'},
-      {'id': '4', 'name': 'PC Desktop'},
+      {'id': '1', 'name': 'Laptop', 'is_active': true},
+      {'id': '2', 'name': 'Smartphone', 'is_active': true},
+      {'id': '3', 'name': 'PC Desktop', 'is_active': true},
     ];
   }
 
-  // --- Customer Devices ---
-  Future<List<Map<String, dynamic>>> getCustomerDevices() async {
-    try {
-      final res = await http.get(Uri.parse('$baseUrl/customer/devices'), headers: _headers);
-      if (res.statusCode == 200) {
-        final body = jsonDecode(res.body) as Map<String, dynamic>;
-        return List<Map<String, dynamic>>.from(body['data']);
-      }
-    } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'category_id': '1',
-        'category_name': 'Laptop',
-        'brand': 'ASUS',
-        'model': 'ROG Zephyrus G14',
-        'serial_number': 'SN-ROG-2026-X',
-        'description': 'Laptop gaming warna putih',
-      }
-    ];
-  }
-
-  Future<Map<String, dynamic>> createCustomerDevice({
-    required String categoryId,
-    required String brand,
-    required String model,
-    String? serialNumber,
-    String? description,
-  }) async {
+  Future<Map<String, dynamic>> createCategory(String name) async {
     try {
       final res = await http.post(
-        Uri.parse('$baseUrl/customer/devices'),
+        Uri.parse('$baseUrl/admin/device-categories'),
         headers: _headers,
-        body: jsonEncode({
-          'category_id': int.tryParse(categoryId) ?? categoryId,
-          'brand': brand,
-          'model': model,
-          'serial_number': serialNumber,
-          'description': description,
-        }),
+        body: jsonEncode({'name': name}),
       );
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode >= 200 && res.statusCode < 300) {
         return {'success': true, 'data': body['data']};
       }
-      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal menyimpan perangkat.'};
+      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat kategori.'};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
+    }
+  }
+
+  Future<bool> toggleCategory(String id, bool active) async {
+    try {
+      final res = await http.patch(
+        Uri.parse('$baseUrl/admin/device-categories/$id'),
+        headers: _headers,
+        body: jsonEncode({'is_active': active}),
+      );
+      return res.statusCode == 200;
     } catch (_) {
-      return {
-        'success': true,
-        'data': {
-          'id': DateTime.now().millisecondsSinceEpoch.toString(),
-          'category_id': categoryId,
-          'category_name': 'Laptop',
-          'brand': brand,
-          'model': model,
-          'serial_number': serialNumber,
-          'description': description,
-        }
-      };
+      return false;
     }
   }
 
@@ -110,27 +77,13 @@ class RepairService {
         return List<Map<String, dynamic>>.from(body['data']);
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'public_reference': 'REP-2026-0001',
-        'service_code': 'MAINTENANCE',
-        'status': 'BOOKED',
-        'issue_description': 'Pembersihan heatsink pasta pendingin dan pengecekan kipas.',
-        'preferred_arrival_date': '2026-11-05',
-        'confirmed_arrival_date': '2026-11-05',
-        'device': {
-          'brand': 'ASUS',
-          'model': 'ROG Zephyrus G14',
-          'category_name': 'Laptop',
-        },
-        'created_at': DateTime.now().toIso8601String(),
-      }
-    ];
+    return [];
   }
 
-  Future<Map<String, dynamic>> bookOrder({
-    required String deviceId,
+  Future<Map<String, dynamic>> createCustomerBooking({
+    required String deviceName,
+    String? categoryId,
+    String serviceCode = 'MAINTENANCE',
     required String issueDescription,
     required String preferredArrivalDate,
   }) async {
@@ -139,7 +92,9 @@ class RepairService {
         Uri.parse('$baseUrl/customer/orders'),
         headers: _headers,
         body: jsonEncode({
-          'device_id': int.tryParse(deviceId) ?? deviceId,
+          'device_name': deviceName,
+          if (categoryId != null && categoryId.isNotEmpty) 'category_id': int.tryParse(categoryId) ?? categoryId,
+          'service_code': serviceCode,
           'issue_description': issueDescription,
           'preferred_arrival_date': preferredArrivalDate,
         }),
@@ -149,16 +104,8 @@ class RepairService {
         return {'success': true, 'data': body['data']};
       }
       return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat pesanan.'};
-    } catch (_) {
-      return {
-        'success': true,
-        'data': {
-          'id': '99',
-          'public_reference': 'REP-2026-0002',
-          'status': 'BOOKED',
-          'message': 'Pesanan berhasil dibuat (mode offline/demo).',
-        }
-      };
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }
   }
 
@@ -176,28 +123,71 @@ class RepairService {
     }
   }
 
-  // --- Admin Orders ---
-  Future<List<Map<String, dynamic>>> getAdminOrders() async {
+  // --- Admin & Cashier Shared Orders ---
+  Future<List<Map<String, dynamic>>> getAdminOrders({String? status}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/admin/orders'), headers: _headers);
+      final url = status != null ? '$baseUrl/admin/orders?status=$status' : '$baseUrl/admin/orders';
+      final res = await http.get(Uri.parse(url), headers: _headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         return List<Map<String, dynamic>>.from(body['data']);
       }
     } catch (_) {}
-    return [
-      {
-        'id': '1',
-        'public_reference': 'REP-2026-0001',
-        'status': 'BOOKED',
-        'customer': {'name': 'Demo Customer', 'email': 'customer@reparo.test'},
-        'device': {'brand': 'ASUS', 'model': 'ROG Zephyrus G14'},
-        'preferred_arrival_date': '2026-11-05',
-        'confirmed_arrival_date': '2026-11-05',
-        'technician': {'id': '2', 'name': 'Demo Technician'},
-        'has_pending_cancellation': false,
+    return [];
+  }
+
+  Future<Map<String, dynamic>> getStatistics({String period = 'all'}) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/admin/orders/statistics?period=$period'),
+        headers: _headers,
+      );
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return body['data'] as Map<String, dynamic>;
       }
-    ];
+    } catch (_) {}
+    return {
+      'period': period,
+      'incoming': 0,
+      'in_progress': 0,
+      'completed': 0,
+      'cancelled': 0,
+      'total': 0,
+    };
+  }
+
+  Future<Map<String, dynamic>> createAdminBooking({
+    required String customerName,
+    String? customerEmail,
+    required String deviceName,
+    String? categoryId,
+    String serviceCode = 'MAINTENANCE',
+    required String issueDescription,
+    required String preferredArrivalDate,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/admin/orders'),
+        headers: _headers,
+        body: jsonEncode({
+          'customer_name': customerName,
+          if (customerEmail != null && customerEmail.isNotEmpty) 'customer_email': customerEmail,
+          'device_name': deviceName,
+          if (categoryId != null && categoryId.isNotEmpty) 'category_id': int.tryParse(categoryId) ?? categoryId,
+          'service_code': serviceCode,
+          'issue_description': issueDescription,
+          'preferred_arrival_date': preferredArrivalDate,
+        }),
+      );
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return {'success': true, 'data': body['data']};
+      }
+      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat pesanan.'};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
+    }
   }
 
   Future<bool> confirmSchedule(String orderId, String date) async {
@@ -209,7 +199,7 @@ class RepairService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -225,7 +215,7 @@ class RepairService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -238,7 +228,7 @@ class RepairService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -255,8 +245,7 @@ class RepairService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 }
-

@@ -38,22 +38,26 @@ class AppShell extends StatelessWidget {
     if (user.isAdmin) {
       return const [
         NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
+        NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
         NavDestination(label: 'Kategori', icon: Icons.category_outlined, routeId: 'categories'),
-        NavDestination(label: 'Staf', icon: Icons.people_outline, routeId: 'staff'),
-        NavDestination(label: 'Akun', icon: Icons.person_outline, routeId: 'account'),
+        NavDestination(label: 'Staf & Performa', icon: Icons.people_outline, routeId: 'staff'),
+        NavDestination(label: 'Manajemen Akun', icon: Icons.manage_accounts_outlined, routeId: 'accounts'),
+      ];
+    } else if (user.isCashier) {
+      return const [
+        NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
+        NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
       ];
     } else if (user.isTechnician) {
       return const [
-        NavDestination(label: 'Tugas', icon: Icons.build_outlined, routeId: 'tasks'),
+        NavDestination(label: 'Tugas Saya', icon: Icons.build_outlined, routeId: 'tasks'),
+        NavDestination(label: 'Antrean Global', icon: Icons.public_outlined, routeId: 'available'),
         NavDestination(label: 'Riwayat', icon: Icons.history_outlined, routeId: 'history'),
-        NavDestination(label: 'Akun', icon: Icons.person_outline, routeId: 'account'),
       ];
     } else {
       return const [
-        NavDestination(label: 'Perangkat', icon: Icons.devices_outlined, routeId: 'devices'),
-        NavDestination(label: 'Pesanan', icon: Icons.receipt_long_outlined, routeId: 'orders'),
-        NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
-        NavDestination(label: 'Akun', icon: Icons.person_outline, routeId: 'account'),
+        NavDestination(label: 'Pesanan Saya', icon: Icons.receipt_long_outlined, routeId: 'orders'),
+        NavDestination(label: 'Booking Baru', icon: Icons.add_circle_outline, routeId: 'booking'),
       ];
     }
   }
@@ -122,6 +126,11 @@ class AppShell extends StatelessWidget {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_circle_outlined, size: 22),
+            tooltip: 'Profil Akun',
+            onPressed: () => onNavigate('profile'),
+          ),
           IconButton(
             icon: const Icon(Icons.logout, size: 20),
             onPressed: onSignOut,

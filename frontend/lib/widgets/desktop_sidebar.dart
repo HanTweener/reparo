@@ -115,6 +115,7 @@ class DesktopSidebar extends StatelessWidget {
                   children: [
                     _buildRoleChip('Pelanggan', 'CUSTOMER'),
                     _buildRoleChip('Teknisi', 'TECHNICIAN'),
+                    _buildRoleChip('Kasir', 'CASHIER'),
                     _buildRoleChip('Admin', 'ADMIN'),
                   ],
                 ),
@@ -123,26 +124,40 @@ class DesktopSidebar extends StatelessWidget {
           ),
           const Divider(height: 1, color: ReparoTheme.rule),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                  child: InkWell(
+                    onTap: () => onNavigate('profile'),
+                    borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  user.name,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, size: 14, color: ReparoTheme.textMuted),
+                            ],
+                          ),
+                          Text(
+                            user.email,
+                            style: const TextStyle(fontSize: 11, color: ReparoTheme.textMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
-                      Text(
-                        user.email,
-                        style: const TextStyle(fontSize: 11, color: ReparoTheme.textMuted),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
                 IconButton(

@@ -22,29 +22,36 @@ class TechnicianService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  Future<List<Map<String, dynamic>>> getAssignedOrders() async {
+  Future<List<Map<String, dynamic>>> getOrders({String scope = 'assigned'}) async {
     try {
-      final res = await http.get(Uri.parse('$baseUrl/technician/orders'), headers: _headers);
+      final res = await http.get(
+        Uri.parse('$baseUrl/technician/orders?scope=$scope'),
+        headers: _headers,
+      );
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         return List<Map<String, dynamic>>.from(body['data']);
       }
     } catch (_) {}
-    return [
-      {
-        'id': '2',
-        'public_reference': 'REP-2026-0002',
-        'status': 'DIAGNOSING',
-        'service_code': 'MAINTENANCE',
-        'customer': {'name': 'Demo Customer'},
-        'device': {'brand': 'Apple', 'model': 'MacBook Pro M2 14"', 'category_name': 'Laptop'},
-        'issue_description': 'Baterai cepat drop dan kipas berbunyi keras.',
-        'confirmed_arrival_date': '2026-11-04',
-        'work_notes': [],
-        'estimate_revisions': [],
-        'qc_checks': [],
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> getAssignedOrders() => getOrders(scope: 'assigned');
+
+  Future<Map<String, dynamic>> claimOrder(String orderId) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/technician/orders/$orderId/claim'),
+        headers: _headers,
+      );
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (res.statusCode == 200) {
+        return {'success': true, 'message': body['message'] ?? 'Pekerjaan berhasil diambil.'};
       }
-    ];
+      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal mengambil pekerjaan.'};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
+    }
   }
 
   Future<bool> startDiagnosis(String orderId) async {
@@ -55,7 +62,7 @@ class TechnicianService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -68,7 +75,7 @@ class TechnicianService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -88,8 +95,8 @@ class TechnicianService {
         return {'success': true, 'revision': body['revision']};
       }
       return {'success': false, 'error': body['error']?['message'] ?? 'Gagal menyimpan estimasi biaya.'};
-    } catch (_) {
-      return {'success': true};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }
   }
 
@@ -101,7 +108,7 @@ class TechnicianService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -114,7 +121,7 @@ class TechnicianService {
       );
       return res.statusCode < 300;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -126,7 +133,7 @@ class TechnicianService {
       );
       return res.statusCode == 200;
     } catch (_) {
-      return true;
+      return false;
     }
   }
 
@@ -139,8 +146,8 @@ class TechnicianService {
       );
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       return {'success': res.statusCode == 200, 'message': body['message']};
-    } catch (_) {
-      return {'success': true, 'message': 'QC tercatat.'};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }
   }
 
@@ -160,9 +167,8 @@ class TechnicianService {
         return {'success': true, 'message': body['message']};
       }
       return {'success': false, 'error': body['error']?['message'] ?? 'Serah terima gagal.'};
-    } catch (_) {
-      return {'success': true, 'message': 'Perangkat berhasil diserahterimakan.'};
+    } catch (e) {
+      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }
   }
 }
-

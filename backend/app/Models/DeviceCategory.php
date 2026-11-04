@@ -22,9 +22,9 @@ class DeviceCategory extends Model
         ];
     }
 
-    public function devices(): HasMany
+    public function repairOrders(): HasMany
     {
-        return $this->hasMany(CustomerDevice::class, 'category_id');
+        return $this->hasMany(RepairOrder::class, 'category_id');
     }
 }
 

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import '../models/auth_user.dart';
 import '../services/api_service.dart';
 import '../services/repair_service.dart';
+import '../services/technician_service.dart';
 
 class AuthState extends ChangeNotifier {
   final ApiService apiService;
   final RepairService repairService;
+  final TechnicianService technicianService;
   AuthUser? _currentUser;
   String? _token;
   bool _isLoading = false;
@@ -14,6 +16,7 @@ class AuthState extends ChangeNotifier {
   AuthState({
     required this.apiService,
     required this.repairService,
+    required this.technicianService,
   });
 
   AuthUser? get currentUser => _currentUser;
@@ -34,6 +37,7 @@ class AuthState extends ChangeNotifier {
       _token = data['token'] as String?;
       apiService.setToken(_token);
       repairService.setToken(_token);
+      technicianService.setToken(_token);
       _currentUser = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       notifyListeners();
       return true;
@@ -57,6 +61,7 @@ class AuthState extends ChangeNotifier {
       _token = data['token'] as String?;
       apiService.setToken(_token);
       repairService.setToken(_token);
+      technicianService.setToken(_token);
       _currentUser = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       notifyListeners();
       return true;
@@ -72,6 +77,9 @@ class AuthState extends ChangeNotifier {
     switch (roleCode) {
       case 'ADMIN':
         await signIn('admin@reparo.test', 'Password123!');
+        break;
+      case 'CASHIER':
+        await signIn('cashier@reparo.test', 'Password123!');
         break;
       case 'TECHNICIAN':
         await signIn('technician@reparo.test', 'Password123!');
@@ -89,6 +97,7 @@ class AuthState extends ChangeNotifier {
     _token = null;
     apiService.setToken(null);
     repairService.setToken(null);
+    technicianService.setToken(null);
     _errorMessage = null;
     notifyListeners();
   }

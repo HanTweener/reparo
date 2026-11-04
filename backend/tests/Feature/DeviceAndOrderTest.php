@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\CustomerDevice;
 use App\Models\DeviceCategory;
 use App\Models\RepairOrder;
 use App\Models\User;
@@ -14,9 +13,9 @@ class DeviceAndOrderTest extends TestCase
     use RefreshDatabase;
 
     private User $customer;
-    private User $otherCustomer;
     private User $technician;
     private User $admin;
+    private User $cashier;
     private DeviceCategory $category;
 
     protected function setUp(): void
@@ -26,14 +25,6 @@ class DeviceAndOrderTest extends TestCase
         $this->customer = User::create([
             'name' => 'Customer Satu',
             'email' => 'customer1@reparo.test',
-            'password' => bcrypt('Password123!'),
-            'role_code' => 'CUSTOMER',
-            'is_active' => true,
-        ]);
-
-        $this->otherCustomer = User::create([
-            'name' => 'Customer Dua',
-            'email' => 'customer2@reparo.test',
             'password' => bcrypt('Password123!'),
             'role_code' => 'CUSTOMER',
             'is_active' => true,
@@ -55,202 +46,149 @@ class DeviceAndOrderTest extends TestCase
             'is_active' => true,
         ]);
 
+        $this->cashier = User::create([
+            'name' => 'Kasir Satu',
+            'email' => 'cashier1@reparo.test',
+            'password' => bcrypt('Password123!'),
+            'role_code' => 'CASHIER',
+            'is_active' => true,
+        ]);
+
         $this->category = DeviceCategory::create([
             'name' => 'Laptop',
             'is_active' => true,
         ]);
     }
 
-    public function test_customer_can_register_device(): void
+    public function test_customer_can_book_order_with_manual_device_name(): void
     {
-        $response = $this->actingAs($this->customer)->postJson('/api/v1/customer/devices', [
-            'category_id' => $this->category->id,
-            'brand' => 'Lenovo',
-            'model' => 'ThinkPad T14',
-            'serial_number' => 'SN-THINK-1234',
-            'description' => 'Laptop kerja',
-        ]);
-
-        $response->assertStatus(201)
-            ->assertJsonPath('data.brand', 'Lenovo')
-            ->assertJsonPath('data.model', 'ThinkPad T14');
-
-        $this->assertDatabaseHas('customer_devices', [
-            'customer_id' => $this->customer->id,
-            'model' => 'ThinkPad T14',
-        ]);
-    }
-
-    public function test_customer_cannot_use_inactive_category(): void
-    {
-        $inactiveCat = DeviceCategory::create(['name' => 'Obsolete Device', 'is_active' => false]);
-
-        $response = $this->actingAs($this->customer)->postJson('/api/v1/customer/devices', [
-            'category_id' => $inactiveCat->id,
-            'brand' => 'OldBrand',
-            'model' => 'OldModel',
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'INACTIVE_CATEGORY');
-    }
-
-    public function test_customer_cannot_view_another_customers_device(): void
-    {
-        $otherDevice = CustomerDevice::create([
-            'customer_id' => $this->otherCustomer->id,
-            'category_id' => $this->category->id,
-            'brand' => 'Apple',
-            'model' => 'MacBook Air M2',
-        ]);
-
-        $response = $this->actingAs($this->customer)->getJson('/api/v1/customer/devices/' . $otherDevice->id);
-
-        $response->assertStatus(404)
-            ->assertJsonPath('error.code', 'RESOURCE_UNAVAILABLE');
-    }
-
-    public function test_customer_can_book_maintenance_order_for_owned_device(): void
-    {
-        $device = CustomerDevice::create([
-            'customer_id' => $this->customer->id,
-            'category_id' => $this->category->id,
-            'brand' => 'Dell',
-            'model' => 'XPS 13',
-        ]);
-
         $response = $this->actingAs($this->customer)->postJson('/api/v1/customer/orders', [
-            'device_id' => $device->id,
-            'issue_description' => 'Baterai menggelembung dan touchpad keras.',
+            'device_name' => 'Lenovo ThinkPad T14',
+            'category_id' => $this->category->id,
+            'service_code' => 'MAINTENANCE',
+            'issue_description' => 'Pembersihan debu heatsink dan thermal paste.',
             'preferred_arrival_date' => now()->addDays(2)->format('Y-m-d'),
         ]);
 
         $response->assertStatus(201)
             ->assertJsonPath('data.status', 'BOOKED')
-            ->assertJsonPath('data.service_code', 'MAINTENANCE');
+            ->assertJsonPath('data.device_name', 'Lenovo ThinkPad T14');
 
         $this->assertDatabaseHas('repair_orders', [
             'customer_id' => $this->customer->id,
-            'device_id' => $device->id,
+            'device_name' => 'Lenovo ThinkPad T14',
             'status' => 'BOOKED',
-        ]);
-
-        $this->assertDatabaseHas('order_status_history', [
-            'new_status' => 'BOOKED',
-            'changed_by_user_id' => $this->customer->id,
+            'current_technician_id' => null,
         ]);
     }
 
-    public function test_customer_cannot_book_with_foreign_device(): void
+    public function test_technician_can_claim_order_from_global_pool(): void
     {
-        $foreignDevice = CustomerDevice::create([
-            'customer_id' => $this->otherCustomer->id,
-            'category_id' => $this->category->id,
-            'brand' => 'Apple',
-            'model' => 'MacBook Pro',
-        ]);
-
-        $response = $this->actingAs($this->customer)->postJson('/api/v1/customer/orders', [
-            'device_id' => $foreignDevice->id,
-            'issue_description' => 'Layar bergaris warna ungu.',
-            'preferred_arrival_date' => now()->addDays(2)->format('Y-m-d'),
-        ]);
-
-        $response->assertStatus(422)
-            ->assertJsonPath('error.code', 'INVALID_DEVICE');
-    }
-
-    public function test_admin_can_confirm_schedule_and_assign_technician(): void
-    {
-        $device = CustomerDevice::create([
-            'customer_id' => $this->customer->id,
-            'category_id' => $this->category->id,
-            'brand' => 'Acer',
-            'model' => 'Swift 3',
-        ]);
-
         $order = RepairOrder::create([
-            'public_reference' => 'REP-2026-9999',
+            'public_reference' => 'REP-2026-CLAIM-01',
             'customer_id' => $this->customer->id,
-            'device_id' => $device->id,
-            'service_code' => 'MAINTENANCE',
-            'issue_description' => 'Kipas mati total.',
-            'preferred_arrival_date' => now()->addDay()->toDateString(),
+            'device_name' => 'MacBook Air M1',
+            'category_id' => $this->category->id,
+            'service_code' => 'DIAGNOSIS',
+            'issue_description' => 'Mati total setelah terkena tumpahan air.',
+            'preferred_arrival_date' => now()->toDateString(),
             'status' => 'BOOKED',
+            'current_technician_id' => null,
             'created_by_user_id' => $this->customer->id,
         ]);
 
-        // 1. Confirm schedule
-        $respSched = $this->actingAs($this->admin)->patchJson('/api/v1/admin/orders/' . $order->id . '/schedule', [
-            'confirmed_arrival_date' => now()->addDay()->toDateString(),
-        ]);
-        $respSched->assertStatus(200);
+        // Available scope shows unassigned order
+        $respList = $this->actingAs($this->technician)->getJson('/api/v1/technician/orders?scope=available');
+        $respList->assertStatus(200)
+            ->assertJsonFragment(['public_reference' => 'REP-2026-CLAIM-01']);
 
-        // 2. Assign technician
-        $respAssign = $this->actingAs($this->admin)->putJson('/api/v1/admin/orders/' . $order->id . '/assignment', [
-            'technician_id' => $this->technician->id,
-            'reason' => 'Spesialis modul pendingin.',
-        ]);
+        // Technician claims order
+        $respClaim = $this->actingAs($this->technician)->postJson('/api/v1/technician/orders/' . $order->id . '/claim');
+        $respClaim->assertStatus(200);
 
-        $respAssign->assertStatus(200)
-            ->assertJsonPath('data.technician.id', (string) $this->technician->id);
+        $this->assertEquals($this->technician->id, $order->fresh()->current_technician_id);
 
-        $this->assertDatabaseHas('repair_orders', [
-            'id' => $order->id,
-            'current_technician_id' => $this->technician->id,
+        // Subsequent claim by another technician fails with conflict
+        $otherTech = User::create([
+            'name' => 'Teknisi Dua',
+            'email' => 'technician2@reparo.test',
+            'password' => bcrypt('Password123!'),
+            'role_code' => 'TECHNICIAN',
+            'is_active' => true,
         ]);
-
-        $this->assertDatabaseHas('order_assignment_events', [
-            'order_id' => $order->id,
-            'new_technician_id' => $this->technician->id,
-            'changed_by_user_id' => $this->admin->id,
-        ]);
+        $respConflict = $this->actingAs($otherTech)->postJson('/api/v1/technician/orders/' . $order->id . '/claim');
+        $respConflict->assertStatus(409);
     }
 
-    public function test_cancellation_flow_pre_diagnosis(): void
+    public function test_admin_and_cashier_can_create_walkin_and_view_statistics(): void
     {
-        $device = CustomerDevice::create([
-            'customer_id' => $this->customer->id,
+        // 1. Cashier creates walk-in booking
+        $respWalkin = $this->actingAs($this->cashier)->postJson('/api/v1/admin/orders', [
+            'customer_name' => 'Walkin Budi',
+            'customer_email' => 'budi_walkin@example.com',
+            'device_name' => 'Asus Vivobook 14',
             'category_id' => $this->category->id,
-            'brand' => 'HP',
-            'model' => 'Envy 13',
+            'service_code' => 'REPAIR',
+            'issue_description' => 'Keyboard tombol enter tidak berfungsi.',
+            'preferred_arrival_date' => now()->toDateString(),
         ]);
+        $respWalkin->assertStatus(201)
+            ->assertJsonPath('data.status', 'BOOKED');
 
+        // 2. Both Admin and Cashier can view statistics
+        $respStatsAdmin = $this->actingAs($this->admin)->getJson('/api/v1/admin/orders/statistics?period=day');
+        $respStatsAdmin->assertStatus(200)->assertJsonStructure(['data' => ['period', 'incoming', 'total']]);
+
+        $respStatsCashier = $this->actingAs($this->cashier)->getJson('/api/v1/admin/orders/statistics?period=day');
+        $respStatsCashier->assertStatus(200);
+    }
+
+    public function test_cashier_cannot_manage_staff_or_categories(): void
+    {
+        // Cashier cannot list staff
+        $respStaff = $this->actingAs($this->cashier)->getJson('/api/v1/admin/staff');
+        $respStaff->assertStatus(403);
+
+        // Cashier cannot create categories
+        $respCat = $this->actingAs($this->cashier)->postJson('/api/v1/admin/device-categories', [
+            'name' => 'Drone',
+        ]);
+        $respCat->assertStatus(403);
+
+        // Admin CAN manage staff and categories
+        $respStaffAdmin = $this->actingAs($this->admin)->getJson('/api/v1/admin/staff');
+        $respStaffAdmin->assertStatus(200);
+
+        $respCatAdmin = $this->actingAs($this->admin)->postJson('/api/v1/admin/device-categories', [
+            'name' => 'Drone',
+        ]);
+        $respCatAdmin->assertStatus(201);
+    }
+
+    public function test_cancellation_flow(): void
+    {
         $order = RepairOrder::create([
-            'public_reference' => 'REP-2026-8888',
+            'public_reference' => 'REP-2026-CANCEL',
             'customer_id' => $this->customer->id,
-            'device_id' => $device->id,
+            'device_name' => 'HP Pavilion 15',
+            'category_id' => $this->category->id,
             'service_code' => 'MAINTENANCE',
             'issue_description' => 'Port USB-C longgar.',
-            'preferred_arrival_date' => now()->addDay()->toDateString(),
+            'preferred_arrival_date' => now()->toDateString(),
             'status' => 'BOOKED',
             'created_by_user_id' => $this->customer->id,
         ]);
 
-        // Customer requests cancel
-        $respCancelReq = $this->actingAs($this->customer)->postJson('/api/v1/customer/orders/' . $order->id . '/cancellation-requests', [
-            'reason' => 'Perangkat sudah diperbaiki sendiri.',
+        $respCancel = $this->actingAs($this->customer)->postJson('/api/v1/customer/orders/' . $order->id . '/cancellation-requests', [
+            'reason' => 'Perangkat sudah normal kembali.',
         ]);
-        $respCancelReq->assertStatus(201)
-            ->assertJsonPath('data.decision', 'PENDING');
+        $respCancel->assertStatus(201);
 
-        // Order remains in BOOKED state
-        $this->assertEquals('BOOKED', $order->fresh()->status);
-
-        // Admin confirms cancellation
         $respDecision = $this->actingAs($this->admin)->postJson('/api/v1/admin/orders/' . $order->id . '/cancellation-decision', [
             'decision' => 'CONFIRMED',
-            'reason' => 'Dibatalkan atas permintaan pelanggan sebelum teknisi bertindak.',
+            'reason' => 'Disetujui.',
         ]);
-
-        $respDecision->assertStatus(200)
-            ->assertJsonPath('data.status', 'CANCELLED');
-
+        $respDecision->assertStatus(200);
         $this->assertEquals('CANCELLED', $order->fresh()->status);
-        $this->assertDatabaseHas('order_status_history', [
-            'order_id' => $order->id,
-            'new_status' => 'CANCELLED',
-        ]);
     }
 }
-

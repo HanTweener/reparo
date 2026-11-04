@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CancellationRequest;
-use App\Models\CustomerDevice;
 use App\Models\OrderStatusHistory;
 use App\Models\RepairOrder;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +18,7 @@ class CustomerOrderController extends Controller
     public function index(Request $request): JsonResponse
     {
         $orders = RepairOrder::with([
-            'device.category',
+            'category',
             'statusHistory',
             'diagnosis',
             'estimateRevisions',
@@ -35,40 +34,29 @@ class CustomerOrderController extends Controller
     }
 
     /**
-     * Create a new Maintenance booking for an owned device.
+     * Create a new Maintenance booking with direct device input.
      */
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
 
         $validated = $request->validate([
-            'device_id' => ['required', 'integer'],
+            'device_name' => ['required', 'string', 'min:3', 'max:255'],
+            'category_id' => ['nullable', 'exists:device_categories,id'],
+            'service_code' => ['nullable', 'string', 'in:MAINTENANCE,REPAIR,DIAGNOSIS'],
             'issue_description' => ['required', 'string', 'min:5', 'max:1000'],
             'preferred_arrival_date' => ['required', 'date', 'after_or_equal:today'],
         ]);
 
-        // Security check: Device must belong to this authenticated customer
-        $device = CustomerDevice::where('id', $validated['device_id'])
-            ->where('customer_id', $user->id)
-            ->first();
-
-        if (! $device) {
-            return response()->json([
-                'error' => [
-                    'code' => 'INVALID_DEVICE',
-                    'message' => 'Perangkat tidak ditemukan atau bukan milik Anda.',
-                ],
-            ], 422);
-        }
-
-        $order = DB::transaction(function () use ($user, $device, $validated) {
+        $order = DB::transaction(function () use ($user, $validated) {
             $reference = 'REP-' . date('Y') . '-' . str_pad((string) (RepairOrder::count() + 1), 4, '0', STR_PAD_LEFT);
 
             $order = RepairOrder::create([
                 'public_reference' => $reference,
                 'customer_id' => $user->id,
-                'device_id' => $device->id,
-                'service_code' => 'MAINTENANCE',
+                'device_name' => trim($validated['device_name']),
+                'category_id' => $validated['category_id'] ?? null,
+                'service_code' => $validated['service_code'] ?? 'MAINTENANCE',
                 'issue_description' => trim($validated['issue_description']),
                 'preferred_arrival_date' => $validated['preferred_arrival_date'],
                 'confirmed_arrival_date' => null,
@@ -90,7 +78,7 @@ class CustomerOrderController extends Controller
             return $order;
         });
 
-        $order->load(['device.category', 'statusHistory']);
+        $order->load(['category', 'statusHistory']);
 
         return response()->json([
             'data' => array_merge($this->formatOrder($order), [
@@ -114,7 +102,7 @@ class CustomerOrderController extends Controller
         }
 
         $order->load([
-            'device.category',
+            'category',
             'statusHistory',
             'cancellationRequests',
             'diagnosis',
@@ -183,11 +171,13 @@ class CustomerOrderController extends Controller
             'confirmed_arrival_date' => $o->confirmed_arrival_date?->format('Y-m-d'),
             'status' => $o->status,
             'lock_version' => $o->lock_version,
+            'device_name' => $o->device_name,
             'device' => [
-                'id' => (string) $o->device_id,
-                'brand' => $o->device?->brand ?? '',
-                'model' => $o->device?->model ?? '',
-                'category_name' => $o->device?->category?->name ?? 'Umum',
+                'id' => '',
+                'brand' => '',
+                'model' => $o->device_name,
+                'name' => $o->device_name,
+                'category_name' => $o->category?->name ?? 'Umum',
             ],
             'status_history' => $o->statusHistory->map(fn ($h) => [
                 'status' => $h->new_status,

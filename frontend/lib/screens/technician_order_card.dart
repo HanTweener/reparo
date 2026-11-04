@@ -58,7 +58,10 @@ class TechnicianOrderCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text('Perangkat: $brand $model', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          Text(
+            'Perangkat: ${(order['device_name'] as String?)?.isNotEmpty == true ? order['device_name'] : '$brand $model'.trim()}',
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 4),
           Text('Keluhan: ${order['issue_description'] ?? '-'}', style: const TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),
           const SizedBox(height: 16),
@@ -182,14 +185,30 @@ class TechnicianOrderCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              if (status == 'BOOKED')
+              if (order['current_technician_id'] == null)
                 ReparoButton(
-                  label: 'Mulai Diagnosis',
+                  label: 'Ambil Tugas Ini',
+                  isPrimary: true,
                   onPressed: () async {
-                    await service.startDiagnosis(id);
+                    final res = await service.claimOrder(id);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(res['message'] ?? res['error'] ?? 'Proses klaim selesai.')),
+                      );
+                    }
                     onRefresh();
                   },
-                ),
+                )
+              else ...[
+                if (status == 'BOOKED')
+                  ReparoButton(
+                    label: 'Mulai Diagnosis',
+                    onPressed: () async {
+                      await service.startDiagnosis(id);
+                      onRefresh();
+                    },
+                  ),
+              ],
               if (status == 'DIAGNOSING' || status == 'IN_REPAIR' || status == 'QC') ...[
                 OutlinedButton.icon(
                   icon: const Icon(Icons.edit_note, size: 16),
@@ -243,19 +262,12 @@ class TechnicianOrderCard extends StatelessWidget {
                     label: 'Selesaikan Serah Terima (Handover)',
                     isPrimary: true,
                     onPressed: () => TechnicianOrderDialogs.showHandoverDialog(
-                      context,
-                      service,
-                      id,
-                      custName,
-                      onRefresh,
+                      context, service, id, custName, onRefresh,
                       expectedVersion: order['lock_version'] is int ? order['lock_version'] as int : null,
                     ),
                   )
                 else
-                  const StatusBadge(
-                    label: 'Menunggu Pembayaran Sebelum Serah Terima',
-                    variant: BadgeVariant.warning,
-                  ),
+                  const StatusBadge(label: 'Menunggu Pembayaran Sebelum Serah Terima', variant: BadgeVariant.warning),
               ],
             ],
           ),
@@ -265,16 +277,10 @@ class TechnicianOrderCard extends StatelessWidget {
   }
 
   BadgeVariant _getBadgeVariant(String status) {
-    switch (status) {
-      case 'BOOKED': return BadgeVariant.neutral;
-      case 'DIAGNOSING': return BadgeVariant.neutral;
-      case 'IN_REPAIR': return BadgeVariant.warning;
-      case 'QC': return BadgeVariant.warning;
-      case 'READY': return BadgeVariant.success;
-      case 'COMPLETED': return BadgeVariant.success;
-      case 'CANCELLED': return BadgeVariant.error;
-      default: return BadgeVariant.neutral;
-    }
+    if (status == 'READY' || status == 'COMPLETED') return BadgeVariant.success;
+    if (status == 'IN_REPAIR' || status == 'QC') return BadgeVariant.warning;
+    if (status == 'CANCELLED') return BadgeVariant.error;
+    return BadgeVariant.neutral;
   }
 }
 

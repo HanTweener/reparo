@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\RepairOrder;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,11 +13,11 @@ use Illuminate\Validation\Rule;
 class AdminStaffController extends Controller
 {
     /**
-     * List staff accounts (Admin and Technician only).
+     * List staff accounts (Admin, Technician, Cashier) with task stats.
      */
     public function index(): JsonResponse
     {
-        $staff = User::whereIn('role_code', ['ADMIN', 'TECHNICIAN'])
+        $staff = User::whereIn('role_code', ['ADMIN', 'TECHNICIAN', 'CASHIER'])
             ->orderBy('created_at', 'desc')
             ->get(['id', 'name', 'email', 'role_code', 'is_active', 'email_verified_at', 'created_at']);
 
@@ -27,6 +28,9 @@ class AdminStaffController extends Controller
                 'email' => $user->email,
                 'role_code' => $user->role_code,
                 'is_active' => $user->is_active,
+                'completed_tasks_count' => RepairOrder::where('current_technician_id', $user->id)
+                    ->whereIn('status', ['COMPLETED', 'DELIVERED'])
+                    ->count(),
                 'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
             ]),
@@ -34,7 +38,7 @@ class AdminStaffController extends Controller
     }
 
     /**
-     * Create a new Staff account (Admin or Technician).
+     * Create a new Staff account (Admin, Technician, or Cashier).
      */
     public function store(Request $request): JsonResponse
     {
@@ -42,7 +46,7 @@ class AdminStaffController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
-            'role_code' => ['required', Rule::in(['ADMIN', 'TECHNICIAN'])],
+            'role_code' => ['required', Rule::in(['ADMIN', 'TECHNICIAN', 'CASHIER'])],
         ]);
 
         $admin = $request->user();

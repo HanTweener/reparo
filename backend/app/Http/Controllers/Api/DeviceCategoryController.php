@@ -50,5 +50,27 @@ class DeviceCategoryController extends Controller
             ],
         ], 201);
     }
+
+    /**
+     * Update category (Admin only).
+     */
+    public function update(Request $request, DeviceCategory $deviceCategory): JsonResponse
+    {
+        $validated = $request->validate([
+            'name' => ['sometimes', 'string', 'max:100', 'unique:device_categories,name,' . $deviceCategory->id],
+            'is_active' => ['sometimes', 'boolean'],
+        ]);
+
+        $deviceCategory->update($validated);
+
+        return response()->json([
+            'data' => [
+                'id' => (string) $deviceCategory->id,
+                'name' => $deviceCategory->name,
+                'is_active' => $deviceCategory->is_active,
+                'message' => 'Kategori perangkat berhasil diperbarui.',
+            ],
+        ]);
+    }
 }
 
