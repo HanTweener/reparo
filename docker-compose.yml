@@ -12,8 +12,6 @@ services:
       APP_ENV: production
       APP_DEBUG: "false"
       APP_URL: "https://reparobe.mfarhanf.dpdns.org"
-      SANCTUM_STATEFUL_DOMAINS: "reparov1.mfarhanf.dpdns.org,localhost"
-      SESSION_DOMAIN: ".mfarhanf.dpdns.org"
       DB_CONNECTION: sqlite
       DB_DATABASE: /var/www/html/database/database.sqlite
       SEED_DEMO_DATA: "true"
