@@ -99,7 +99,7 @@ class CustomerOrderCard extends StatelessWidget {
           if (estimates.isNotEmpty) ...[
             const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: ReparoTheme.surfaceRaised,
                 borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
@@ -117,9 +117,16 @@ class CustomerOrderCard extends StatelessWidget {
                     ],
                   ),
                   if (estimates.length > 1) ...[
-                    const SizedBox(height: 4),
-                    Text('Alasan revisi: ${estimates.last['reason'] ?? '-'}',
-                        style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: ReparoTheme.textMuted)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Estimasi Awal: Rp ${_formatMoney(estimates.first['amount'])} • Revisi #${estimates.length}',
+                      style: const TextStyle(fontSize: 11, color: ReparoTheme.textMuted),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Alasan Revisi: ${estimates.last['reason'] ?? '-'}',
+                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: ReparoTheme.textPrimary),
+                    ),
                   ],
                 ],
               ),

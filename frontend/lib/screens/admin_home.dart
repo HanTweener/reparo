@@ -57,7 +57,7 @@ class _AdminHomeState extends State<AdminHome> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Antrean Operasional — ${widget.user.name}',
+                    Text('Antrean Operasional: ${widget.user.name}',
                         style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     const Text('Kelola penjadwalan kedatangan, penugasan teknisi, dan permohonan pembatalan',

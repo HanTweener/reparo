@@ -80,6 +80,25 @@ class WorkflowAndPaymentTest extends TestCase
         $this->assertEquals('DIAGNOSING', $this->order->fresh()->status);
     }
 
+    public function test_concurrent_stale_update_rejected_with_409_state_conflict(): void
+    {
+        // Stale update sends mismatched expected_version -> 409
+        $resConflict = $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", [
+                'expected_version' => 999,
+            ]);
+        $resConflict->assertStatus(409)
+            ->assertJsonPath('error.code', 'STATE_CONFLICT');
+
+        // Matching expected_version succeeds and advances lock_version
+        $resOk = $this->actingAs($this->tech1)
+            ->postJson("/api/v1/technician/orders/{$this->order->id}/diagnosis/start", [
+                'expected_version' => 1,
+            ]);
+        $resOk->assertStatus(200);
+        $this->assertEquals(2, $this->order->fresh()->lock_version);
+    }
+
     public function test_diagnosis_and_estimate_revisions_with_reason_and_safe_projections(): void
     {
         $this->order->update(['status' => 'DIAGNOSING']);

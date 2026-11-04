@@ -110,3 +110,4 @@ flutter test
 ## 📄 Lisensi
 
 Proyek ini dirilis di bawah lisensi [MIT](LICENSE).
+

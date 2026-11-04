@@ -26,6 +26,14 @@ class TechnicianWorkflowController extends Controller
                 ],
             ], 403);
         }
+        if ($request->has('expected_version') && (int) $request->input('expected_version') !== $order->lock_version) {
+            return response()->json([
+                'error' => [
+                    'code' => 'STATE_CONFLICT',
+                    'message' => 'Versi pesanan tidak sesuai (stale update). Muat ulang data terbaru.',
+                ],
+            ], 409);
+        }
         return null;
     }
 
