@@ -278,10 +278,61 @@ class WorkflowAndPaymentTest extends TestCase
         // Mark invoice PAID
         $invoice->update(['status' => 'PAID', 'paid_at' => now()]);
 
-        // Handover succeeds and marks order COMPLETED
+        // Handover succeeds with recipient and notes, marks order COMPLETED
         $successHandover = $this->actingAs($this->tech1)
-            ->postJson("/api/v1/orders/{$this->order->id}/handover");
+            ->postJson("/api/v1/orders/{$this->order->id}/handover", [
+                'recipient_name' => 'Budi Santoso',
+                'notes' => 'Unit diambil lengkap bersama charger ori',
+            ]);
         $successHandover->assertStatus(200);
-        $this->assertEquals('COMPLETED', $this->order->fresh()->status);
+        $freshOrder = $this->order->fresh();
+        $this->assertEquals('COMPLETED', $freshOrder->status);
+        $this->assertStringContainsString('Budi Santoso', $freshOrder->statusHistory->last()->reason);
+    }
+
+    public function test_customer_invoice_access_and_corrections_visibility(): void
+    {
+        $otherCustomer = User::factory()->create([
+            'email' => 'other@reparo.test',
+            'role_code' => 'CUSTOMER',
+        ]);
+
+        $this->order->update(['status' => 'READY']);
+        $invoice = Invoice::create([
+            'order_id' => $this->order->id,
+            'invoice_number' => 'INV-20261103-0003',
+            'current_amount' => 600000.00,
+            'currency_code' => 'IDR',
+            'status' => 'OPEN',
+            'issued_at' => now(),
+        ]);
+
+        // Unauthorized customer gets 403
+        $this->actingAs($otherCustomer)
+            ->getJson("/api/v1/orders/{$this->order->id}/invoice")
+            ->assertStatus(403);
+
+        // Admin corrects invoice
+        $this->actingAs($this->admin)
+            ->postJson("/api/v1/admin/invoices/{$invoice->id}/corrections", [
+                'new_amount' => 550000.00,
+                'reason' => 'Diskon promo akhir pekan.',
+            ])
+            ->assertStatus(200);
+
+        // Customer sees corrected amount and reason in order details
+        $custRes = $this->actingAs($this->customer)
+            ->getJson("/api/v1/customer/orders/{$this->order->id}");
+        $custRes->assertStatus(200)
+            ->assertJsonPath('data.invoice.amount', '550000.00')
+            ->assertJsonPath('data.invoice.corrections.0.reason', 'Diskon promo akhir pekan.')
+            ->assertJsonPath('data.invoice.corrections.0.previous_amount', '600000.00')
+            ->assertJsonPath('data.invoice.corrections.0.new_amount', '550000.00');
+
+        // Test sandbox simulated payment
+        $simRes = $this->actingAs($this->customer)
+            ->postJson("/api/v1/invoices/{$invoice->id}/simulate-midtrans");
+        $simRes->assertStatus(200);
+        $this->assertEquals('PAID', $invoice->fresh()->status);
     }
 }

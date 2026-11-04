@@ -139,11 +139,16 @@ class TechnicianService {
     }
   }
 
-  Future<Map<String, dynamic>> completeHandover(String orderId) async {
+  Future<Map<String, dynamic>> completeHandover(String orderId, {String? recipientName, String? notes, int? expectedVersion}) async {
     try {
       final res = await http.post(
         Uri.parse('$baseUrl/orders/$orderId/handover'),
         headers: _headers,
+        body: jsonEncode({
+          if (recipientName != null && recipientName.isNotEmpty) 'recipient_name': recipientName,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (expectedVersion != null) 'expected_version': expectedVersion,
+        }),
       );
       final body = jsonDecode(res.body) as Map<String, dynamic>;
       if (res.statusCode == 200) {

@@ -23,7 +23,7 @@ class CustomerOrderController extends Controller
             'statusHistory',
             'diagnosis',
             'estimateRevisions',
-            'invoice',
+            'invoice.corrections',
         ])
             ->where('customer_id', $request->user()->id)
             ->orderBy('created_at', 'desc')
@@ -119,7 +119,7 @@ class CustomerOrderController extends Controller
             'cancellationRequests',
             'diagnosis',
             'estimateRevisions',
-            'invoice',
+            'invoice.corrections',
         ]);
 
         return response()->json([
@@ -182,6 +182,7 @@ class CustomerOrderController extends Controller
             'preferred_arrival_date' => $o->preferred_arrival_date?->format('Y-m-d'),
             'confirmed_arrival_date' => $o->confirmed_arrival_date?->format('Y-m-d'),
             'status' => $o->status,
+            'lock_version' => $o->lock_version,
             'device' => [
                 'id' => (string) $o->device_id,
                 'brand' => $o->device?->brand ?? '',
@@ -211,6 +212,12 @@ class CustomerOrderController extends Controller
                 'status' => $o->invoice->status,
                 'issued_at' => $o->invoice->issued_at?->toIso8601String(),
                 'paid_at' => $o->invoice->paid_at?->toIso8601String(),
+                'corrections' => $o->invoice->corrections->map(fn ($c) => [
+                    'previous_amount' => $c->previous_amount,
+                    'new_amount' => $c->new_amount,
+                    'reason' => $c->reason,
+                    'created_at' => $c->created_at->toIso8601String(),
+                ]),
             ] : null,
             'created_at' => $o->created_at->toIso8601String(),
         ];

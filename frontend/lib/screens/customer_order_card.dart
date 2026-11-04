@@ -27,6 +27,7 @@ class CustomerOrderCard extends StatelessWidget {
     final diag = order['diagnosis']?['customer_safe_summary'] as String?;
     final estimates = List<Map<String, dynamic>>.from(order['estimate_revisions'] ?? []);
     final invoice = order['invoice'] as Map<String, dynamic>?;
+    final corrections = List<Map<String, dynamic>>.from(invoice?['corrections'] ?? []);
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -145,27 +146,58 @@ class CustomerOrderCard extends StatelessWidget {
                   color: invoice['status'] == 'PAID' ? ReparoTheme.statusSuccess.withValues(alpha: 0.3) : ReparoTheme.accent.withValues(alpha: 0.3),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Invoice: ${invoice['invoice_number']}',
-                          style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontSize: 12, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
-                      Text('Total: Rp ${_formatMoney(invoice['amount'])}',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Invoice: ${invoice['invoice_number']}',
+                              style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontSize: 12, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 2),
+                          Text('Total: Rp ${_formatMoney(invoice['amount'])}',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                      if (invoice['status'] == 'PAID')
+                        const StatusBadge(label: 'LUNAS (PAID)', variant: BadgeVariant.success)
+                      else
+                        ReparoButton(
+                          label: 'Bayar Sandbox',
+                          isPrimary: true,
+                          onPressed: () => _handleCheckout(context, invoice),
+                        ),
                     ],
                   ),
-                  if (invoice['status'] == 'PAID')
-                    const StatusBadge(label: 'LUNAS (PAID)', variant: BadgeVariant.success)
-                  else
-                    ReparoButton(
-                      label: 'Bayar Sandbox',
-                      isPrimary: true,
-                      onPressed: () => _handleCheckout(context, invoice),
+                  if (corrections.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: ReparoTheme.surface,
+                        borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
+                        border: Border.all(color: ReparoTheme.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Koreksi Biaya oleh Admin:',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ReparoTheme.accent)),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Disesuaikan ke Rp ${_formatMoney(corrections.last['new_amount'])} (Semula Rp ${_formatMoney(corrections.last['previous_amount'])})',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text('Alasan: ${corrections.last['reason'] ?? '-'}',
+                              style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: ReparoTheme.textMuted)),
+                        ],
+                      ),
                     ),
+                  ],
                 ],
               ),
             ),
@@ -199,8 +231,6 @@ class CustomerOrderCard extends StatelessWidget {
     if (!context.mounted) return;
 
     if (res['success'] == true) {
-      final attempt = res['data'] as Map<String, dynamic>;
-      final providerRef = attempt['provider_reference'] ?? 'MID-TEST';
       final double amt = double.tryParse(inv['amount'].toString()) ?? 0;
 
       // Show confirmation dialog with direct sandbox simulation option for seamless verification
@@ -228,7 +258,7 @@ class CustomerOrderCard extends StatelessWidget {
               label: 'Konfirmasi Bayar (Simulasi Sukses)',
               onPressed: () async {
                 Navigator.pop(ctx);
-                await paymentService.simulatePaymentSuccess(providerRef, amt);
+                await paymentService.simulatePaymentSuccess(invId);
                 onRefresh();
               },
             ),

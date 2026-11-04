@@ -33,6 +33,7 @@ class TechnicianOrderController extends Controller
                 'id' => (string) $o->id,
                 'public_reference' => $o->public_reference,
                 'status' => $o->status,
+                'lock_version' => $o->lock_version,
                 'service_code' => $o->service_code,
                 'customer' => [
                     'name' => $o->customer?->name ?? 'Pelanggan',

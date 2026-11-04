@@ -236,5 +236,22 @@ class RepairService {
       return true;
     }
   }
+
+  Future<bool> completeHandover(String orderId, {String? recipientName, String? notes, int? expectedVersion}) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/orders/$orderId/handover'),
+        headers: _headers,
+        body: jsonEncode({
+          if (recipientName != null && recipientName.isNotEmpty) 'recipient_name': recipientName,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
+          if (expectedVersion != null) 'expected_version': expectedVersion,
+        }),
+      );
+      return res.statusCode == 200;
+    } catch (_) {
+      return true;
+    }
+  }
 }
 

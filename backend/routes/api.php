@@ -27,6 +27,7 @@ Route::prefix('v1')->group(function () {
         // Order invoice & Handover routes (Customer / Tech / Admin)
         Route::get('/orders/{order}/invoice', [InvoicePaymentController::class, 'showInvoice']);
         Route::post('/orders/{order}/handover', [OrderHandoverController::class, 'handover']);
+        Route::post('/invoices/{invoice}/simulate-midtrans', [InvoicePaymentController::class, 'simulateSandboxPayment']);
 
         // Customer routes (Role: CUSTOMER)
         Route::middleware('role:CUSTOMER')->prefix('customer')->group(function () {

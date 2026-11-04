@@ -25,6 +25,15 @@ class OrderHandoverController extends Controller
             ], 403);
         }
 
+        if ($request->has('expected_version') && (int) $request->input('expected_version') !== $order->lock_version) {
+            return response()->json([
+                'error' => [
+                    'code' => 'STATE_CONFLICT',
+                    'message' => 'Versi pesanan tidak sesuai (stale update). Muat ulang data terbaru.',
+                ],
+            ], 409);
+        }
+
         if ($order->status !== 'READY') {
             return response()->json([
                 'error' => ['code' => 'INVALID_STATE', 'message' => 'Order must be in READY state for handover.'],
@@ -38,7 +47,18 @@ class OrderHandoverController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($order, $user) {
+        $validated = $request->validate([
+            'recipient_name' => ['nullable', 'string', 'max:120'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $recipient = $validated['recipient_name'] ?? $order->customer?->name ?? 'Pelanggan';
+        $reason = 'Serah terima fisik perangkat selesai kepada: ' . $recipient;
+        if (! empty($validated['notes'])) {
+            $reason .= ' (' . $validated['notes'] . ')';
+        }
+
+        DB::transaction(function () use ($order, $user, $reason) {
             $prev = $order->status;
             $order->status = 'COMPLETED';
             $order->lock_version += 1;
@@ -49,7 +69,7 @@ class OrderHandoverController extends Controller
                 'previous_status' => $prev,
                 'new_status' => 'COMPLETED',
                 'changed_by_user_id' => $user->id,
-                'reason' => 'Physical device handover completed to customer',
+                'reason' => $reason,
             ]);
         });
 

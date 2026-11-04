@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/auth_user.dart';
 import '../services/api_service.dart';
 import '../services/payment_service.dart';
 import '../services/repair_service.dart';
@@ -215,6 +214,69 @@ class AdminOrderDialogs {
               Navigator.pop(ctx);
               final res = await paymentService.correctInvoice(invoiceId, amt, reasonCtrl.text.trim());
               if (res['success'] == true) onSuccess();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  static void showHandoverDialog(
+    BuildContext context,
+    String orderId,
+    String customerName,
+    RepairService repairService,
+    VoidCallback onSuccess, {
+    int? expectedVersion,
+  }) {
+    final nameCtrl = TextEditingController(text: customerName);
+    final notesCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: ReparoTheme.surface,
+        title: const Text('Serah Terima Fisik Perangkat'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Konfirmasikan bahwa pembayaran invoice telah lunas dan unit fisik diserahkan kepada pelanggan.',
+                style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Nama Penerima', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: notesCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan Serah Terima (Opsional)',
+                  hintText: 'Contoh: Diserahkan lengkap dengan charger dan nota',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ReparoButton(
+            label: 'Selesaikan Serah Terima',
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final ok = await repairService.completeHandover(
+                orderId,
+                recipientName: nameCtrl.text.trim(),
+                notes: notesCtrl.text.trim(),
+                expectedVersion: expectedVersion,
+              );
+              if (ok) onSuccess();
             },
           ),
         ],

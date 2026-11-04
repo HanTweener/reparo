@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/technician_service.dart';
+import '../theme/reparo_theme.dart';
 import '../widgets/reparo_button.dart';
 
 class TechnicianOrderDialogs {
@@ -193,7 +194,7 @@ class TechnicianOrderDialogs {
                   controller: noteCtrl,
                   decoration: const InputDecoration(
                     labelText: 'Catatan Hasil Pemeriksaan',
-                    hintText: 'Contoh: Suhu stresstes 65C normal, audio jernih',
+                    hintText: 'Contoh: Suhu stresstest 65C normal, audio jernih',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -215,5 +216,75 @@ class TechnicianOrderDialogs {
       ),
     );
   }
-}
 
+  static void showHandoverDialog(
+    BuildContext context,
+    TechnicianService service,
+    String orderId,
+    String customerName,
+    VoidCallback onSuccess, {
+    int? expectedVersion,
+  }) {
+    final nameCtrl = TextEditingController(text: customerName);
+    final notesCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Konfirmasi Serah Terima Perangkat'),
+        content: SizedBox(
+          width: 480,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pastikan pembayaran telah diverifikasi lunas dan kondisi fisik perangkat sudah diperiksa bersama pelanggan sebelum serah terima.',
+                style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Nama Penerima Perangkat',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: notesCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan Serah Terima (Opsional)',
+                  hintText: 'Contoh: Perangkat diterima lengkap beserta charger dan box',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ReparoButton(
+            label: 'Selesaikan Serah Terima',
+            onPressed: () async {
+              final res = await service.completeHandover(
+                orderId,
+                recipientName: nameCtrl.text.trim(),
+                notes: notesCtrl.text.trim(),
+                expectedVersion: expectedVersion,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (res['success'] == true) {
+                onSuccess();
+              } else if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(res['error'] ?? 'Serah terima gagal.')),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}

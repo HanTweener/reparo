@@ -4,7 +4,6 @@ import '../services/api_service.dart';
 import '../services/payment_service.dart';
 import '../services/repair_service.dart';
 import '../theme/reparo_theme.dart';
-import '../widgets/reparo_button.dart';
 import '../widgets/status_badge.dart';
 import 'admin_order_dialogs.dart';
 
@@ -208,6 +207,23 @@ class _AdminHomeState extends State<AdminHome> {
                   icon: const Icon(Icons.warning, size: 14),
                   label: const Text('Tinjau Pembatalan', style: TextStyle(fontSize: 12)),
                   onPressed: () => AdminOrderDialogs.showCancellationDialog(context, orderId, widget.repairService, _loadQueue),
+                ),
+              if (status == 'READY' && inv != null && inv['status'] == 'PAID')
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: ReparoTheme.statusSuccess,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.check_circle_outline, size: 14),
+                  label: const Text('Serah Terima Fisik', style: TextStyle(fontSize: 12)),
+                  onPressed: () => AdminOrderDialogs.showHandoverDialog(
+                    context,
+                    orderId,
+                    o['customer']?['name'] ?? 'Pelanggan',
+                    widget.repairService,
+                    _loadQueue,
+                    expectedVersion: o['lock_version'] is int ? o['lock_version'] as int : null,
+                  ),
                 ),
             ],
           ),

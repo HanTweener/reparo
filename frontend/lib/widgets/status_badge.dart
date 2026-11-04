@@ -32,7 +32,6 @@ class StatusBadge extends StatelessWidget {
         bgColor = ReparoTheme.statusWarningBg;
         break;
       case BadgeVariant.neutral:
-      default:
         textColor = ReparoTheme.statusNeutral;
         bgColor = ReparoTheme.statusNeutralBg;
         break;

@@ -70,22 +70,11 @@ class PaymentService {
     }
   }
 
-  Future<bool> simulatePaymentSuccess(String providerReference, double amount) async {
+  Future<bool> simulatePaymentSuccess(String invoiceId) async {
     try {
-      // In demo/test environment, compute valid SHA512 signature using test server key
-      // Server key default: SB-Mid-server-test-secret-key-reparo
-      // Or server webhook
-      final grossAmount = amount.toStringAsFixed(2);
       final res = await http.post(
-        Uri.parse('$baseUrl/webhooks/midtrans'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'order_id': providerReference,
-          'status_code': '200',
-          'gross_amount': grossAmount,
-          'transaction_status': 'settlement',
-          'signature_key': 'simulated-signature', // When needed or backend accepts
-        }),
+        Uri.parse('$baseUrl/invoices/$invoiceId/simulate-midtrans'),
+        headers: _headers,
       );
       return res.statusCode == 200;
     } catch (_) {

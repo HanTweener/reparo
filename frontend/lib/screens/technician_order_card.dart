@@ -30,6 +30,8 @@ class TechnicianOrderCard extends StatelessWidget {
     final estimates = List<Map<String, dynamic>>.from(order['estimate_revisions'] ?? []);
     final qcs = List<Map<String, dynamic>>.from(order['qc_checks'] ?? []);
     final hasFailedQc = status == 'QC' && qcs.isNotEmpty && qcs.last['result'] == 'FAIL';
+    final inv = order['invoice'] as Map<String, dynamic>?;
+    final isPaid = inv != null && inv['status'] == 'PAID';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -153,6 +155,26 @@ class TechnicianOrderCard extends StatelessWidget {
             ),
           ],
 
+          if (inv != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isPaid ? ReparoTheme.statusSuccessBg : ReparoTheme.surfaceRaised,
+                borderRadius: BorderRadius.circular(ReparoTheme.radiusControl),
+                border: Border.all(color: isPaid ? ReparoTheme.statusSuccess.withValues(alpha: 0.3) : ReparoTheme.border),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Invoice: ${inv['invoice_number'] ?? '-'} (Rp ${inv['amount'] ?? '-'})',
+                      style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontSize: 12, fontWeight: FontWeight.w600)),
+                  StatusBadge(label: isPaid ? 'PAID' : 'OPEN', variant: isPaid ? BadgeVariant.success : BadgeVariant.warning),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 16),
 
           // Action Toolbar
@@ -215,20 +237,26 @@ class TechnicianOrderCard extends StatelessWidget {
                     context, service, id, onRefresh,
                   ),
                 ),
-              if (status == 'READY')
-                ReparoButton(
-                  label: 'Selesaikan Serah Terima (Handover)',
-                  isPrimary: true,
-                  onPressed: () async {
-                    final res = await service.completeHandover(id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(res['message'] ?? res['error'] ?? '')),
-                      );
-                      onRefresh();
-                    }
-                  },
-                ),
+              if (status == 'READY') ...[
+                if (isPaid)
+                  ReparoButton(
+                    label: 'Selesaikan Serah Terima (Handover)',
+                    isPrimary: true,
+                    onPressed: () => TechnicianOrderDialogs.showHandoverDialog(
+                      context,
+                      service,
+                      id,
+                      custName,
+                      onRefresh,
+                      expectedVersion: order['lock_version'] is int ? order['lock_version'] as int : null,
+                    ),
+                  )
+                else
+                  const StatusBadge(
+                    label: 'Menunggu Pembayaran Sebelum Serah Terima',
+                    variant: BadgeVariant.warning,
+                  ),
+              ],
             ],
           ),
         ],
@@ -249,3 +277,4 @@ class TechnicianOrderCard extends StatelessWidget {
     }
   }
 }
+

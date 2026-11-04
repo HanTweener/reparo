@@ -173,5 +173,38 @@ class InvoicePaymentController extends Controller
 
         return response()->json(['status' => 'success', 'applied_status' => $targetStatus]);
     }
+
+    public function simulateSandboxPayment(Request $request, Invoice $invoice): JsonResponse
+    {
+        $attempt = $invoice->paymentAttempts()->latest()->first();
+        if (! $attempt) {
+            $attemptRef = 'MID-' . date('YmdHis') . '-' . $invoice->id . '-' . Str::random(6);
+            $attempt = PaymentAttempt::create([
+                'invoice_id' => $invoice->id,
+                'provider' => 'MIDTRANS',
+                'provider_reference' => $attemptRef,
+                'amount' => $invoice->current_amount,
+                'currency_code' => $invoice->currency_code,
+                'status' => 'PENDING',
+                'snap_token' => 'sim-snap-' . Str::random(16),
+                'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/sim',
+            ]);
+        }
+
+        $serverKey = (string) config('services.midtrans.server_key', 'SB-Mid-server-test-secret-key-reparo');
+        $grossAmount = number_format($attempt->amount, 2, '.', '');
+        $signatureKey = hash('sha512', $attempt->provider_reference . '200' . $grossAmount . $serverKey);
+
+        $fakeRequest = Request::create('/api/v1/webhooks/midtrans', 'POST', [
+            'order_id' => $attempt->provider_reference,
+            'status_code' => '200',
+            'gross_amount' => $grossAmount,
+            'signature_key' => $signatureKey,
+            'transaction_status' => 'settlement',
+            'transaction_id' => 'SIM-' . Str::random(10),
+        ]);
+
+        return $this->handleWebhook($fakeRequest);
+    }
 }
 
