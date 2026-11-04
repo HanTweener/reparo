@@ -2,10 +2,15 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class PaymentService {
+  static const String defaultApiUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://reparobe.mfarhanf.dpdns.org/api/v1',
+  );
+
   final String baseUrl;
   String? _token;
 
-  PaymentService({this.baseUrl = 'http://localhost:8000/api/v1'});
+  PaymentService({String? baseUrl}) : baseUrl = baseUrl ?? defaultApiUrl;
 
   void setToken(String? token) {
     _token = token;

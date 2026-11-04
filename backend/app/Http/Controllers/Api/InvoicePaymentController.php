@@ -11,6 +11,7 @@ use App\Models\RepairOrder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class InvoicePaymentController extends Controller
@@ -52,6 +53,41 @@ class InvoicePaymentController extends Controller
         $attemptRef = 'MID-' . date('YmdHis') . '-' . $invoice->id . '-' . Str::random(6);
         $snapToken = 'snap-token-' . Str::random(24);
         $redirectUrl = 'https://app.sandbox.midtrans.com/snap/v2/vtweb/' . $snapToken;
+
+        $serverKey = (string) config('services.midtrans.server_key');
+        if ($serverKey && ! str_contains($serverKey, 'test-secret-key')) {
+            try {
+                $endpoint = config('services.midtrans.is_production')
+                    ? 'https://app.midtrans.com/snap/v1/transactions'
+                    : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+
+                $webhookUrl = 'https://reparobe.mfarhanf.dpdns.org/api/v1/webhooks/midtrans';
+
+                $res = Http::withBasicAuth($serverKey, '')
+                    ->withHeaders([
+                        'X-Append-Notification' => $webhookUrl,
+                        'X-Override-Notification' => $webhookUrl,
+                    ])
+                    ->timeout(10)
+                    ->post($endpoint, [
+                        'transaction_details' => [
+                            'order_id' => $attemptRef,
+                            'gross_amount' => (int) round($invoice->current_amount),
+                        ],
+                        'customer_details' => [
+                            'first_name' => $user->name,
+                            'email' => $user->email,
+                        ],
+                    ]);
+
+                if ($res->successful()) {
+                    $snapToken = $res->json('token') ?? $snapToken;
+                    $redirectUrl = $res->json('redirect_url') ?? $redirectUrl;
+                }
+            } catch (\Throwable $e) {
+                // Keep simulated/fallback token on network error
+            }
+        }
 
         $attempt = PaymentAttempt::create([
             'invoice_id' => $invoice->id,
