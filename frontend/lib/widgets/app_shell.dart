@@ -38,6 +38,7 @@ class AppShell extends StatelessWidget {
     if (user.isAdmin) {
       return const [
         NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
+        NavDestination(label: 'Antrean Global', icon: Icons.public_outlined, routeId: 'global_queue'),
         NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
         NavDestination(label: 'Manajemen Kategori', icon: Icons.category_outlined, routeId: 'categories'),
         NavDestination(label: 'Staf & Performa', icon: Icons.people_outline, routeId: 'staff'),
@@ -46,6 +47,7 @@ class AppShell extends StatelessWidget {
     } else if (user.isCashier) {
       return const [
         NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
+        NavDestination(label: 'Antrean Global', icon: Icons.public_outlined, routeId: 'global_queue'),
         NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
       ];
     } else if (user.isTechnician) {

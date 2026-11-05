@@ -13,6 +13,7 @@ class AdminHome extends StatefulWidget {
   final ApiService apiService;
   final RepairService repairService;
   final ValueChanged<String> onNavigate;
+  final String initialTab;
 
   const AdminHome({
     super.key,
@@ -20,6 +21,7 @@ class AdminHome extends StatefulWidget {
     required this.apiService,
     required this.repairService,
     required this.onNavigate,
+    this.initialTab = 'all',
   });
 
   @override
@@ -31,19 +33,33 @@ class _AdminHomeState extends State<AdminHome> {
   List<Map<String, dynamic>> _orders = [];
   Map<String, dynamic> _stats = {'incoming': 0, 'in_progress': 0, 'completed': 0, 'total': 0};
   String _statsPeriod = 'all';
+  late String _currentTab;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _currentTab = widget.initialTab;
     _loadAll();
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialTab != widget.initialTab) {
+      _currentTab = widget.initialTab;
+      _loadAll();
+    }
   }
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
     final isCashier = widget.user.isCashier;
+    final ordersFuture = _currentTab == 'global'
+        ? widget.repairService.getGlobalQueue()
+        : widget.repairService.getOperationalOrders(isCashier: isCashier);
     final results = await Future.wait([
-      widget.repairService.getOperationalOrders(isCashier: isCashier),
+      ordersFuture,
       widget.repairService.getStatistics(period: _statsPeriod, isCashier: isCashier),
     ]);
     if (mounted) {
@@ -115,7 +131,34 @@ class _AdminHomeState extends State<AdminHome> {
             currentPeriod: _statsPeriod,
             onPeriodChanged: _onPeriodChanged,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('Semua Antrean'),
+                selected: _currentTab == 'all',
+                onSelected: (val) {
+                  if (val && _currentTab != 'all') {
+                    setState(() => _currentTab = 'all');
+                    _loadAll();
+                  }
+                },
+              ),
+              ChoiceChip(
+                avatar: const Icon(Icons.public, size: 14),
+                label: const Text('Antrean Global (Pool Terbuka)'),
+                selected: _currentTab == 'global',
+                onSelected: (val) {
+                  if (val && _currentTab != 'global') {
+                    setState(() => _currentTab = 'global');
+                    _loadAll();
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           if (_isLoading)
             const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
           else if (_orders.isEmpty)
@@ -136,13 +179,12 @@ class _AdminHomeState extends State<AdminHome> {
   Widget _buildEmptyState() {
     return Container(
       padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: ReparoTheme.surface,
-        borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel),
-        border: Border.all(color: ReparoTheme.border),
-      ),
-      child: const Center(
-        child: Text('Tidak ada antrean pesanan aktif saat ini.', style: TextStyle(color: ReparoTheme.textMuted)),
+      decoration: BoxDecoration(color: ReparoTheme.surface, borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel), border: Border.all(color: ReparoTheme.border)),
+      child: Center(
+        child: Text(
+          _currentTab == 'global' ? 'Tidak ada antrean pesanan di pool global saat ini.' : 'Tidak ada antrean pesanan aktif saat ini.',
+          style: const TextStyle(color: ReparoTheme.textMuted),
+        ),
       ),
     );
   }
@@ -153,9 +195,7 @@ class _AdminHomeState extends State<AdminHome> {
     final hasCancel = o['has_pending_cancellation'] == true;
     final tech = o['technician'] as Map<String, dynamic>?;
     final inv = o['invoice'] as Map<String, dynamic>?;
-    final deviceStr = (o['device_name'] as String?)?.isNotEmpty == true
-        ? o['device_name']
-        : '${o['device']?['brand'] ?? ''} ${o['device']?['model'] ?? ''}'.trim();
+    final deviceStr = (o['device_name'] as String?)?.isNotEmpty == true ? o['device_name'] : '${o['device']?['brand'] ?? ''} ${o['device']?['model'] ?? ''}'.trim();
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -175,10 +215,7 @@ class _AdminHomeState extends State<AdminHome> {
                   Text(o['public_reference'] ?? '', style: const TextStyle(fontFamily: ReparoTheme.fontMono, fontWeight: FontWeight.w700, fontSize: 15)),
                   const SizedBox(width: 8),
                   StatusBadge(label: status, variant: _getVariant(status)),
-                  if (hasCancel) ...[
-                    const SizedBox(width: 8),
-                    const StatusBadge(label: 'Permohonan Batal', variant: BadgeVariant.error),
-                  ],
+                  if (hasCancel) ...[const SizedBox(width: 8), const StatusBadge(label: 'Permohonan Batal', variant: BadgeVariant.error)],
                 ],
               ),
               Text(
@@ -190,23 +227,16 @@ class _AdminHomeState extends State<AdminHome> {
           const SizedBox(height: 8),
           Text('Pelanggan: ${o['customer']?['name'] ?? '-'} • Perangkat: $deviceStr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          Text(
-            'Jadwal: ${o['confirmed_arrival_date'] ?? o['preferred_arrival_date'] ?? 'Belum ada jadwal'} ' +
-                (o['confirmed_arrival_date'] != null ? '(Terkonfirmasi)' : '(Preferensi Pelanggan)'),
-            style: const TextStyle(fontSize: 12, color: ReparoTheme.textMuted),
-          ),
+          Text('Jadwal: ${o['confirmed_arrival_date'] ?? o['preferred_arrival_date'] ?? 'Belum ada jadwal'} ${o['confirmed_arrival_date'] != null ? "(Terkonfirmasi)" : "(Preferensi)"}', style: const TextStyle(fontSize: 12, color: ReparoTheme.textMuted)),
           if (inv != null) ...[
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('Invoice: ${inv['invoice_number']} (Rp ${inv['amount']} - ${inv['status']})',
-                    style: const TextStyle(fontSize: 12, fontFamily: ReparoTheme.fontMono, color: ReparoTheme.accent)),
+                Text('Invoice: ${inv['invoice_number']} (Rp ${inv['amount']} - ${inv['status']})', style: const TextStyle(fontSize: 12, fontFamily: ReparoTheme.fontMono, color: ReparoTheme.accent)),
                 if (inv['status'] == 'OPEN') ...[
                   const SizedBox(width: 8),
                   InkWell(
-                    onTap: () => AdminOrderDialogs.showInvoiceCorrectionDialog(
-                      context, inv['id'].toString(), double.tryParse(inv['amount'].toString()) ?? 0, _paymentService, _loadAll,
-                    ),
+                    onTap: () => AdminOrderDialogs.showInvoiceCorrectionDialog(context, inv['id'].toString(), double.tryParse(inv['amount'].toString()) ?? 0, _paymentService, _loadAll),
                     child: const Text('Koreksi Nilai', style: TextStyle(fontSize: 11, color: ReparoTheme.accent, decoration: TextDecoration.underline)),
                   ),
                 ],
@@ -225,6 +255,13 @@ class _AdminHomeState extends State<AdminHome> {
                 label: const Text('Konfirmasi Jadwal', style: TextStyle(fontSize: 12)),
                 onPressed: () => AdminOrderDialogs.showConfirmScheduleDialog(context, orderId, widget.repairService, _loadAll),
               ),
+              if (widget.user.isAdmin && tech == null)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: ReparoTheme.accent, foregroundColor: Colors.white),
+                  icon: const Icon(Icons.person_add_alt_1, size: 14),
+                  label: const Text('Tugaskan Teknisi', style: TextStyle(fontSize: 12)),
+                  onPressed: () => AdminOrderDialogs.showAssignDialog(context, orderId, widget.apiService, widget.repairService, _loadAll),
+                ),
               if (hasCancel)
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: ReparoTheme.statusError, foregroundColor: Colors.white),
@@ -252,7 +289,6 @@ class _AdminHomeState extends State<AdminHome> {
   BadgeVariant _getVariant(String status) {
     if (status == 'READY' || status == 'COMPLETED') return BadgeVariant.success;
     if (status == 'IN_REPAIR' || status == 'QC') return BadgeVariant.warning;
-    if (status == 'CANCELLED') return BadgeVariant.error;
-    return BadgeVariant.neutral;
+    return status == 'CANCELLED' ? BadgeVariant.error : BadgeVariant.neutral;
   }
 }

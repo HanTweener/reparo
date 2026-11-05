@@ -162,6 +162,7 @@ class _ReparoAppState extends State<ReparoApp> {
         apiService: auth.apiService,
         repairService: auth.repairService,
         onNavigate: (route) => setState(() => _currentRoute = route),
+        initialTab: _currentRoute == 'global_queue' ? 'global' : 'all',
       );
     } else if (user.isCashier) {
       if (_currentRoute == 'booking') {
@@ -176,6 +177,7 @@ class _ReparoAppState extends State<ReparoApp> {
         apiService: auth.apiService,
         repairService: auth.repairService,
         onNavigate: (route) => setState(() => _currentRoute = route),
+        initialTab: _currentRoute == 'global_queue' ? 'global' : 'all',
       );
     } else if (user.isTechnician) {
       final scope = _currentRoute == 'available'

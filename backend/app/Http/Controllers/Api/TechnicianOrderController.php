@@ -19,6 +19,10 @@ class TechnicianOrderController extends Controller
         $user = $request->user();
         $scope = $request->query('scope', 'assigned');
 
+        if ($scope === 'available') {
+            return app(GlobalQueueController::class)->index($request);
+        }
+
         $query = RepairOrder::with([
             'customer',
             'category',
@@ -30,10 +34,7 @@ class TechnicianOrderController extends Controller
             'invoice',
         ])->orderBy('created_at', 'desc');
 
-        if ($scope === 'available') {
-            $query->whereNull('current_technician_id')
-                ->whereNotIn('status', ['COMPLETED', 'DELIVERED', 'CANCELLED']);
-        } elseif ($scope === 'history') {
+        if ($scope === 'history') {
             $query->where('current_technician_id', $user->id)
                 ->whereIn('status', ['COMPLETED', 'DELIVERED']);
         } else {

@@ -166,6 +166,17 @@ class RepairService {
 
   Future<List<Map<String, dynamic>>> getAdminOrders({String? status}) => getOperationalOrders(status: status, isCashier: false);
 
+  Future<List<Map<String, dynamic>>> getGlobalQueue() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/orders/global-queue'), headers: _headers);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return List<Map<String, dynamic>>.from(body['data']);
+      }
+    } catch (_) {}
+    return [];
+  }
+
   Future<Map<String, dynamic>> getStatistics({String period = 'all', bool isCashier = false}) async {
     try {
       final pfx = isCashier ? 'cashier' : 'admin';
@@ -236,41 +247,23 @@ class RepairService {
   Future<bool> confirmSchedule(String orderId, String date, {bool isCashier = false}) async {
     try {
       final pfx = isCashier ? 'cashier' : 'admin';
-      final res = await http.patch(
-        Uri.parse('$baseUrl/$pfx/orders/$orderId/schedule'),
-        headers: _headers,
-        body: jsonEncode({'confirmed_arrival_date': date, if (isCashier) 'arrival_date': date}),
-      );
+      final res = await http.patch(Uri.parse('$baseUrl/$pfx/orders/$orderId/schedule'), headers: _headers, body: jsonEncode({'confirmed_arrival_date': date, if (isCashier) 'arrival_date': date}));
       return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
   }
 
   Future<bool> assignTechnician(String orderId, String technicianId, String? reason) async {
     try {
-      final res = await http.put(
-        Uri.parse('$baseUrl/admin/orders/$orderId/assignment'),
-        headers: _headers,
-        body: jsonEncode({'technician_id': int.tryParse(technicianId) ?? technicianId, 'reason': reason}),
-      );
+      final res = await http.put(Uri.parse('$baseUrl/admin/orders/$orderId/assignment'), headers: _headers, body: jsonEncode({'technician_id': int.tryParse(technicianId) ?? technicianId, 'reason': reason}));
       return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
   }
 
   Future<bool> decideCancellation(String orderId, String decision, String? reason) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/admin/orders/$orderId/cancellation-decision'),
-        headers: _headers,
-        body: jsonEncode({'decision': decision, 'reason': reason}),
-      );
+      final res = await http.post(Uri.parse('$baseUrl/admin/orders/$orderId/cancellation-decision'), headers: _headers, body: jsonEncode({'decision': decision, 'reason': reason}));
       return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
   }
 
   Future<bool> completeHandover(String orderId, {String? recipientName, String? notes, int? expectedVersion}) async {
@@ -285,8 +278,6 @@ class RepairService {
         }),
       );
       return res.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
   }
 }

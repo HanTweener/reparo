@@ -197,4 +197,38 @@ class DeviceAndOrderTest extends TestCase
         $respDecision->assertStatus(200);
         $this->assertEquals('CANCELLED', $order->fresh()->status);
     }
+
+    public function test_shared_global_queue_accessible_by_staff_roles_and_forbidden_for_customer(): void
+    {
+        $order = RepairOrder::create([
+            'public_reference' => 'REP-2026-GLOBAL-TEST',
+            'customer_id' => $this->customer->id,
+            'device_name' => 'MacBook Pro M2',
+            'category_id' => $this->category->id,
+            'service_code' => 'MAINTENANCE',
+            'issue_description' => 'Thermal paste repaste.',
+            'preferred_arrival_date' => now()->toDateString(),
+            'status' => 'BOOKED',
+            'current_technician_id' => null,
+            'created_by_user_id' => $this->customer->id,
+        ]);
+
+        // Unauthenticated is rejected (401)
+        $this->getJson('/api/v1/orders/global-queue')
+            ->assertStatus(401);
+
+        // Customer is forbidden (403)
+        $this->actingAs($this->customer)->getJson('/api/v1/orders/global-queue')
+            ->assertStatus(403);
+
+        // Staff roles are allowed (200)
+        $this->actingAs($this->admin)->getJson('/api/v1/orders/global-queue')
+            ->assertStatus(200)->assertJsonPath('data.0.id', (string) $order->id);
+
+        $this->actingAs($this->cashier)->getJson('/api/v1/orders/global-queue')
+            ->assertStatus(200)->assertJsonPath('data.0.id', (string) $order->id);
+
+        $this->actingAs($this->technician)->getJson('/api/v1/orders/global-queue')
+            ->assertStatus(200)->assertJsonPath('data.0.id', (string) $order->id);
+    }
 }

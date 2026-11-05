@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashierOrderController;
 use App\Http\Controllers\Api\CustomerOrderController;
 use App\Http\Controllers\Api\DeviceCategoryController;
+use App\Http\Controllers\Api\GlobalQueueController;
 use App\Http\Controllers\Api\InvoicePaymentController;
 use App\Http\Controllers\Api\OrderHandoverController;
 use App\Http\Controllers\Api\ServiceCategoryController;
@@ -30,6 +31,12 @@ Route::prefix('v1')->group(function () {
         Route::get('/orders/{order}/invoice', [InvoicePaymentController::class, 'showInvoice']);
         Route::post('/orders/{order}/handover', [OrderHandoverController::class, 'handover']);
         Route::post('/invoices/{invoice}/simulate-midtrans', [InvoicePaymentController::class, 'simulateSandboxPayment']);
+
+        // Shared Operational routes (Role: ADMIN, CASHIER, TECHNICIAN - Excludes CUSTOMER)
+        Route::middleware('role:ADMIN,CASHIER,TECHNICIAN')->group(function () {
+            Route::get('/orders/global-queue', [GlobalQueueController::class, 'index']);
+            Route::get('/global-queue', [GlobalQueueController::class, 'index']);
+        });
 
         // Customer routes (Role: CUSTOMER)
         Route::middleware('role:CUSTOMER')->prefix('customer')->group(function () {

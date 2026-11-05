@@ -66,6 +66,7 @@ void main() {
 
     expect(find.textContaining('Antrean Operasional'), findsOneWidget);
     expect(find.text('Buat Booking Baru'), findsOneWidget);
+    expect(find.textContaining('Antrean Global'), findsWidgets);
   });
 
   testWidgets('Quick demo cashier signs in and renders cashier operations queue', (WidgetTester tester) async {
@@ -82,6 +83,7 @@ void main() {
 
     expect(find.textContaining('Antrean Operasional'), findsOneWidget);
     expect(find.text('Buat Booking Baru'), findsOneWidget);
+    expect(find.textContaining('Antrean Global'), findsWidgets);
   });
 
   testWidgets('Quick demo technician signs in and renders technician portal with scopes', (WidgetTester tester) async {
