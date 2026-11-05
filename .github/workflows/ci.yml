@@ -7,9 +7,16 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   backend-test:
-    name: Backend Test Suite (Laravel 12)
+    name: Backend Test Suite (Laravel 12 / PHP 8.4)
     runs-on: ubuntu-latest
 
     defaults:
@@ -79,6 +86,9 @@ jobs:
       - name: Install Flutter Dependencies
         run: flutter pub get
 
+      - name: Run Flutter Static Analysis
+        run: flutter analyze --no-fatal-infos
+
       - name: Run Flutter Widget Tests
         run: flutter test
 
@@ -91,3 +101,22 @@ jobs:
           name: reparo-web-build
           path: frontend/build/web
           retention-days: 7
+
+  docker-verification:
+    name: Docker & Nginx Configuration Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose config
+
+      - name: Validate Reverse Proxy Nginx Configuration Syntax
+        run: |
+          docker run --rm -v ${{ github.workspace }}/docker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf --entrypoint nginx nginx:alpine -t
+
+      - name: Validate Frontend Nginx Configuration Syntax
+        run: |
+          docker run --rm -v ${{ github.workspace }}/frontend/nginx.conf:/etc/nginx/conf.d/default.conf --entrypoint nginx nginx:alpine -t
