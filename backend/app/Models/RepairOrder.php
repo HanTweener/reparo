@@ -105,4 +105,29 @@ class RepairOrder extends Model
     {
         return $this->hasOne(Invoice::class, 'order_id');
     }
+
+    /**
+     * Generate guaranteed unique public reference (e.g. REP-2026-0035).
+     */
+    public static function generateUniqueReference(): string
+    {
+        $year = date('Y');
+        $maxId = (int) (static::max('id') ?? 0);
+        $counter = 1;
+
+        do {
+            $num = $maxId + $counter;
+            $ref = sprintf('REP-%s-%04d', $year, $num);
+            if (! static::where('public_reference', $ref)->exists()) {
+                return $ref;
+            }
+            $counter++;
+            if ($counter > 50) {
+                $ref = sprintf('REP-%s-%s', date('Ymd'), strtoupper(\Illuminate\Support\Str::random(4)));
+                if (! static::where('public_reference', $ref)->exists()) {
+                    return $ref;
+                }
+            }
+        } while (true);
+    }
 }

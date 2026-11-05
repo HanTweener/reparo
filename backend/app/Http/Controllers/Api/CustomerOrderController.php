@@ -43,13 +43,13 @@ class CustomerOrderController extends Controller
         $validated = $request->validate([
             'device_name' => ['required', 'string', 'min:3', 'max:255'],
             'category_id' => ['nullable', 'exists:device_categories,id'],
-            'service_code' => ['nullable', 'string', 'in:MAINTENANCE,REPAIR,DIAGNOSIS'],
+            'service_code' => ['nullable', 'string', 'max:32'],
             'issue_description' => ['required', 'string', 'min:5', 'max:1000'],
             'preferred_arrival_date' => ['required', 'date', 'after_or_equal:today'],
         ]);
 
         $order = DB::transaction(function () use ($user, $validated) {
-            $reference = 'REP-' . date('Y') . '-' . str_pad((string) (RepairOrder::count() + 1), 4, '0', STR_PAD_LEFT);
+            $reference = RepairOrder::generateUniqueReference();
 
             $order = RepairOrder::create([
                 'public_reference' => $reference,

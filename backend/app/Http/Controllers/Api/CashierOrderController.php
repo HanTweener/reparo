@@ -115,12 +115,14 @@ class CashierOrderController extends Controller
             'category_id' => ['nullable', 'exists:device_categories,id'],
             'service_code' => ['required', 'string', 'max:64'],
             'issue_description' => ['required', 'string', 'min:5', 'max:2000'],
-            'arrival_date' => ['required', 'date'],
+            'arrival_date' => ['nullable', 'date'],
+            'preferred_arrival_date' => ['nullable', 'date'],
         ]);
 
         $cashier = $request->user();
+        $arrivalDate = $validated['arrival_date'] ?? $validated['preferred_arrival_date'] ?? now()->toDateString();
 
-        $order = DB::transaction(function () use ($validated, $cashier) {
+        $order = DB::transaction(function () use ($validated, $cashier, $arrivalDate) {
             $email = ! empty($validated['customer_email'])
                 ? strtolower(trim($validated['customer_email']))
                 : 'walkin_'.Str::random(8).'@reparo.customer';
@@ -136,13 +138,14 @@ class CashierOrderController extends Controller
             );
 
             $order = RepairOrder::create([
-                'public_reference' => 'REP-'.date('Ymd').'-'.strtoupper(Str::random(4)),
+                'public_reference' => RepairOrder::generateUniqueReference(),
                 'customer_id' => $customer->id,
                 'device_name' => trim($validated['device_name']),
                 'category_id' => $validated['category_id'] ?? null,
                 'service_code' => $validated['service_code'],
                 'issue_description' => trim($validated['issue_description']),
-                'preferred_arrival_date' => $validated['arrival_date'],
+                'preferred_arrival_date' => $arrivalDate,
+                'confirmed_arrival_date' => $arrivalDate,
                 'confirmed_arrival_date' => $validated['arrival_date'],
                 'status' => 'BOOKED',
                 'current_technician_id' => null,

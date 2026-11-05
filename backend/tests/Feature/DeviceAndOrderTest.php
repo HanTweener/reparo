@@ -256,4 +256,29 @@ class DeviceAndOrderTest extends TestCase
         $this->actingAs($this->cashier)->getJson('/api/v1/admin/staff')
             ->assertStatus(403);
     }
+
+    public function test_admin_can_create_multiple_bookings_without_reference_collision(): void
+    {
+        $year = date('Y');
+        $targetRef = sprintf('REP-%s-0001', $year);
+        RepairOrder::firstOrCreate(['public_reference' => $targetRef], [
+            'customer_id' => $this->customer->id,
+            'device_name' => 'Existing Device',
+            'issue_description' => 'Dummy test device description.',
+            'preferred_arrival_date' => now()->toDateString(),
+            'status' => 'BOOKED',
+            'created_by_user_id' => $this->customer->id,
+        ]);
+
+        $response = $this->actingAs($this->admin)->postJson('/api/v1/admin/orders', [
+            'customer_name' => 'Siti Walkin',
+            'device_name' => 'MacBook Pro M3',
+            'issue_description' => 'Keyboard macet huruf E.',
+            'preferred_arrival_date' => now()->toDateString(),
+        ]);
+
+        $response->assertStatus(201);
+        $newRef = $response->json('data.public_reference');
+        $this->assertNotEquals($targetRef, $newRef);
+    }
 }

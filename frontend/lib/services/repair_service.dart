@@ -126,11 +126,16 @@ class RepairService {
           'preferred_arrival_date': preferredArrivalDate,
         }),
       );
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        return {'success': true, 'data': body['data']};
+      Map<String, dynamic>? body;
+      try {
+        body = jsonDecode(res.body) as Map<String, dynamic>?;
+      } catch (_) {
+        body = null;
       }
-      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat pesanan.'};
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return {'success': true, 'data': body?['data']};
+      }
+      return {'success': false, 'error': body?['error']?['message'] ?? 'Gagal membuat pesanan (Status ${res.statusCode}).'};
     } catch (e) {
       return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }
@@ -215,11 +220,16 @@ class RepairService {
           'arrival_date': preferredArrivalDate,
         }),
       );
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        return {'success': true, 'data': body['data']};
+      Map<String, dynamic>? body;
+      try {
+        body = jsonDecode(res.body) as Map<String, dynamic>?;
+      } catch (_) {
+        body = null;
       }
-      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat pesanan.'};
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        return {'success': true, 'data': body?['data']};
+      }
+      return {'success': false, 'error': body?['error']?['message'] ?? 'Gagal membuat pesanan (Status ${res.statusCode}).'};
     } catch (e) {
       return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
     }

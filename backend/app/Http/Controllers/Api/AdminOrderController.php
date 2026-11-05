@@ -89,9 +89,10 @@ class AdminOrderController extends Controller
             'customer_email' => ['nullable', 'email', 'max:255'],
             'device_name' => ['required', 'string', 'min:3', 'max:255'],
             'category_id' => ['nullable', 'exists:device_categories,id'],
-            'service_code' => ['nullable', 'string', 'in:MAINTENANCE,REPAIR,DIAGNOSIS'],
+            'service_code' => ['nullable', 'string', 'max:32'],
             'issue_description' => ['required', 'string', 'min:5', 'max:1000'],
-            'preferred_arrival_date' => ['required', 'date'],
+            'preferred_arrival_date' => ['nullable', 'date'],
+            'arrival_date' => ['nullable', 'date'],
         ]);
 
         $admin = $request->user();
@@ -111,8 +112,10 @@ class AdminOrderController extends Controller
             ]
         );
 
-        $order = DB::transaction(function () use ($admin, $customer, $validated) {
-            $reference = 'REP-' . date('Y') . '-' . str_pad((string) (RepairOrder::count() + 1), 4, '0', STR_PAD_LEFT);
+        $arrivalDate = $validated['preferred_arrival_date'] ?? $validated['arrival_date'] ?? now()->toDateString();
+
+        $order = DB::transaction(function () use ($admin, $customer, $validated, $arrivalDate) {
+            $reference = RepairOrder::generateUniqueReference();
 
             $order = RepairOrder::create([
                 'public_reference' => $reference,
@@ -121,8 +124,8 @@ class AdminOrderController extends Controller
                 'category_id' => $validated['category_id'] ?? null,
                 'service_code' => $validated['service_code'] ?? 'MAINTENANCE',
                 'issue_description' => trim($validated['issue_description']),
-                'preferred_arrival_date' => $validated['preferred_arrival_date'],
-                'confirmed_arrival_date' => $validated['preferred_arrival_date'],
+                'preferred_arrival_date' => $arrivalDate,
+                'confirmed_arrival_date' => $arrivalDate,
                 'status' => 'BOOKED',
                 'current_technician_id' => null,
                 'created_by_user_id' => $admin->id,
