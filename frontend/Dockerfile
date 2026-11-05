@@ -14,6 +14,7 @@ RUN flutter build web --release
 # Stage 2: Production Nginx runtime
 FROM nginx:alpine
 
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/build/web /usr/share/nginx/html
 
 EXPOSE 80

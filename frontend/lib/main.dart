@@ -4,6 +4,8 @@ import 'screens/admin_booking_screen.dart';
 import 'screens/admin_categories_screen.dart';
 import 'screens/admin_home.dart';
 import 'screens/admin_staff_screen.dart';
+import 'screens/cashier_booking_screen.dart';
+import 'screens/cashier_home.dart';
 import 'screens/customer_booking_screen.dart';
 import 'screens/customer_home.dart';
 import 'screens/login_screen.dart';
@@ -11,6 +13,7 @@ import 'screens/register_screen.dart';
 import 'screens/technician_home.dart';
 import 'screens/user_profile_screen.dart';
 import 'services/api_service.dart';
+import 'services/cashier_service.dart';
 import 'services/repair_service.dart';
 import 'services/technician_service.dart';
 import 'state/auth_state.dart';
@@ -22,10 +25,12 @@ void main() {
   final apiService = ApiService();
   final repairService = RepairService();
   final technicianService = TechnicianService();
+  final cashierService = CashierService();
   final authState = AuthState(
     apiService: apiService,
     repairService: repairService,
     technicianService: technicianService,
+    cashierService: cashierService,
   );
 
   runApp(ReparoApp(authState: authState));
@@ -112,15 +117,25 @@ class _ReparoAppState extends State<ReparoApp> {
         onSwitchRole: (role) async {
           await auth.quickSwitchRole(role);
           if (mounted) {
-            setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
-                ? 'queue'
-                : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+            setState(() {
+              if (role == 'ADMIN') {
+                _currentRoute = 'queue';
+              } else if (role == 'CASHIER') {
+                _currentRoute = 'cashier_queue';
+              } else if (role == 'TECHNICIAN') {
+                _currentRoute = 'tasks';
+              } else {
+                _currentRoute = 'orders';
+              }
+            });
           }
         },
         onBack: () {
           setState(() {
-            if (user.isAdmin || user.isCashier) {
+            if (user.isAdmin) {
               _currentRoute = 'queue';
+            } else if (user.isCashier) {
+              _currentRoute = 'cashier_queue';
             } else if (user.isTechnician) {
               _currentRoute = 'tasks';
             } else {
@@ -165,19 +180,17 @@ class _ReparoAppState extends State<ReparoApp> {
         initialTab: _currentRoute == 'global_queue' ? 'global' : 'all',
       );
     } else if (user.isCashier) {
-      if (_currentRoute == 'booking') {
-        return AdminBookingScreen(
-          repairService: auth.repairService,
+      if (_currentRoute == 'cashier_booking' || _currentRoute == 'booking') {
+        return CashierBookingScreen(
+          cashierService: auth.cashierService,
           onNavigate: (route) => setState(() => _currentRoute = route),
-          isCashier: true,
         );
       }
-      return AdminHome(
+      return CashierHome(
         user: user,
-        apiService: auth.apiService,
-        repairService: auth.repairService,
+        cashierService: auth.cashierService,
         onNavigate: (route) => setState(() => _currentRoute = route),
-        initialTab: _currentRoute == 'global_queue' ? 'global' : 'all',
+        initialTab: (_currentRoute == 'cashier_global' || _currentRoute == 'global_queue') ? 'global' : 'all',
       );
     } else if (user.isTechnician) {
       final scope = _currentRoute == 'available'

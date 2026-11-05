@@ -46,9 +46,9 @@ class AppShell extends StatelessWidget {
       ];
     } else if (user.isCashier) {
       return const [
-        NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
-        NavDestination(label: 'Antrean Global', icon: Icons.public_outlined, routeId: 'global_queue'),
-        NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
+        NavDestination(label: 'Antrean Kasir', icon: Icons.inbox_outlined, routeId: 'cashier_queue'),
+        NavDestination(label: 'Antrean Global', icon: Icons.public_outlined, routeId: 'cashier_global'),
+        NavDestination(label: 'Booking Walk-in', icon: Icons.add_circle_outline, routeId: 'cashier_booking'),
       ];
     } else if (user.isTechnician) {
       return const [

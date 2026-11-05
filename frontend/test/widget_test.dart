@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:frontend/main.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/cashier_service.dart';
 import 'package:frontend/services/repair_service.dart';
 import 'package:frontend/services/technician_service.dart';
 import 'package:frontend/state/auth_state.dart';
@@ -12,6 +13,7 @@ void main() {
       apiService: ApiService(),
       repairService: RepairService(),
       technicianService: TechnicianService(),
+      cashierService: CashierService(),
     );
   }
 
@@ -81,9 +83,10 @@ void main() {
     await tester.tap(find.text('Kasir'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Antrean Operasional'), findsOneWidget);
+    expect(find.textContaining('Portal Kasir'), findsOneWidget);
     expect(find.text('Buat Booking Baru'), findsOneWidget);
     expect(find.textContaining('Antrean Global'), findsWidgets);
+    expect(find.text('Antrean Kasir'), findsWidgets);
   });
 
   testWidgets('Quick demo technician signs in and renders technician portal with scopes', (WidgetTester tester) async {

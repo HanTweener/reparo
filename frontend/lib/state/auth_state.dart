@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/auth_user.dart';
 import '../services/api_service.dart';
+import '../services/cashier_service.dart';
 import '../services/repair_service.dart';
 import '../services/technician_service.dart';
 
@@ -8,6 +9,7 @@ class AuthState extends ChangeNotifier {
   final ApiService apiService;
   final RepairService repairService;
   final TechnicianService technicianService;
+  final CashierService cashierService;
   AuthUser? _currentUser;
   String? _token;
   bool _isLoading = false;
@@ -17,6 +19,7 @@ class AuthState extends ChangeNotifier {
     required this.apiService,
     required this.repairService,
     required this.technicianService,
+    required this.cashierService,
   });
 
   AuthUser? get currentUser => _currentUser;
@@ -38,6 +41,7 @@ class AuthState extends ChangeNotifier {
       apiService.setToken(_token);
       repairService.setToken(_token);
       technicianService.setToken(_token);
+      cashierService.setToken(_token);
       _currentUser = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       notifyListeners();
       return true;
@@ -62,6 +66,7 @@ class AuthState extends ChangeNotifier {
       apiService.setToken(_token);
       repairService.setToken(_token);
       technicianService.setToken(_token);
+      cashierService.setToken(_token);
       _currentUser = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       notifyListeners();
       return true;
@@ -98,6 +103,7 @@ class AuthState extends ChangeNotifier {
     apiService.setToken(null);
     repairService.setToken(null);
     technicianService.setToken(null);
+    cashierService.setToken(null);
     _errorMessage = null;
     notifyListeners();
   }
