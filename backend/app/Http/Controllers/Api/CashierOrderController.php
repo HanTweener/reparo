@@ -86,23 +86,21 @@ class CashierOrderController extends Controller
         if ($period === 'day') {
             $query->whereDate('created_at', Carbon::today());
         } elseif ($period === 'week') {
-            $query->where('created_at', '>=', Carbon::now()->startOfWeek());
+            $query->whereBetween('created_at', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
         } elseif ($period === 'month') {
-            $query->where('created_at', '>=', Carbon::now()->startOfMonth());
+            $query->whereBetween('created_at', [Carbon::now()->startOfMonth(), Carbon::now()->endOfMonth()]);
         }
 
-        $incoming = (clone $query)->whereIn('status', ['BOOKED'])->count();
-        $inProgress = (clone $query)->whereIn('status', ['DIAGNOSING', 'IN_REPAIR', 'QC'])->count();
-        $completed = (clone $query)->whereIn('status', ['READY', 'COMPLETED', 'DELIVERED'])->count();
-        $total = (clone $query)->count();
+        $allOrders = $query->get(['id', 'status']);
 
         return response()->json([
             'data' => [
                 'period' => $period,
-                'incoming' => $incoming,
-                'in_progress' => $inProgress,
-                'completed' => $completed,
-                'total' => $total,
+                'incoming' => $allOrders->whereIn('status', ['BOOKED', 'ARRIVED'])->count(),
+                'in_progress' => $allOrders->whereIn('status', ['DIAGNOSING', 'ESTIMATED', 'IN_REPAIR', 'QC'])->count(),
+                'completed' => $allOrders->whereIn('status', ['READY', 'COMPLETED', 'DELIVERED'])->count(),
+                'cancelled' => $allOrders->where('status', 'CANCELLED')->count(),
+                'total' => $allOrders->count(),
             ],
         ]);
     }

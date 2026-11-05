@@ -231,4 +231,29 @@ class DeviceAndOrderTest extends TestCase
         $this->actingAs($this->technician)->getJson('/api/v1/orders/global-queue')
             ->assertStatus(200)->assertJsonPath('data.0.id', (string) $order->id);
     }
+
+    public function test_cashier_has_order_authority_on_admin_endpoints_but_forbidden_from_staff_and_categories(): void
+    {
+        // Cashier can read admin orders queue and statistics
+        $this->actingAs($this->cashier)->getJson('/api/v1/admin/orders')
+            ->assertStatus(200);
+
+        $this->actingAs($this->cashier)->getJson('/api/v1/admin/orders/statistics?period=all')
+            ->assertStatus(200);
+
+        // Cashier can create order on admin endpoint
+        $this->actingAs($this->cashier)->postJson('/api/v1/admin/orders', [
+            'customer_name' => 'Budi Walkin',
+            'device_name' => 'Acer Swift 3',
+            'issue_description' => 'Ganti keyboard laptop.',
+            'preferred_arrival_date' => now()->toDateString(),
+        ])->assertStatus(201);
+
+        // Cashier is strictly forbidden from master categories & staff management
+        $this->actingAs($this->cashier)->postJson('/api/v1/admin/device-categories', ['name' => 'Tablet'])
+            ->assertStatus(403);
+
+        $this->actingAs($this->cashier)->getJson('/api/v1/admin/staff')
+            ->assertStatus(403);
+    }
 }

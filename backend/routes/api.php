@@ -61,8 +61,8 @@ Route::prefix('v1')->group(function () {
             Route::post('/orders/{order}/qc-checks', [TechnicianWorkflowController::class, 'submitQcCheck']);
         });
 
-        // Cashier routes (Role: CASHIER)
-        Route::middleware('role:CASHIER')->prefix('cashier')->group(function () {
+        // Dedicated Cashier endpoint prefix (Role: CASHIER, ADMIN)
+        Route::middleware('role:CASHIER,ADMIN')->prefix('cashier')->group(function () {
             Route::get('/orders/statistics', [CashierOrderController::class, 'statistics']);
             Route::get('/orders', [CashierOrderController::class, 'index']);
             Route::post('/orders', [CashierOrderController::class, 'store']);
@@ -71,8 +71,9 @@ Route::prefix('v1')->group(function () {
             Route::post('/invoices/{invoice}/corrections', [InvoicePaymentController::class, 'correctInvoice']);
         });
 
-        // Admin routes (Role: ADMIN)
-        Route::middleware('role:ADMIN')->prefix('admin')->group(function () {
+        // Operational Order Management (Role: ADMIN, CASHIER)
+        // Kasir memiliki otoritas operasional pesanan dan antrean yang sama dengan Admin
+        Route::middleware('role:ADMIN,CASHIER')->prefix('admin')->group(function () {
             Route::get('/orders/statistics', [AdminOrderController::class, 'statistics']);
             Route::get('/orders', [AdminOrderController::class, 'index']);
             Route::post('/orders', [AdminOrderController::class, 'store']);
@@ -81,7 +82,10 @@ Route::prefix('v1')->group(function () {
             Route::put('/orders/{order}/assignment', [AdminOrderController::class, 'assignTechnician']);
             Route::post('/orders/{order}/cancellation-decision', [AdminOrderController::class, 'decideCancellation']);
             Route::post('/invoices/{invoice}/corrections', [InvoicePaymentController::class, 'correctInvoice']);
+        });
 
+        // Restricted Admin-only routes (Kasir dilarang: Master Kategori & Staff Management)
+        Route::middleware('role:ADMIN')->prefix('admin')->group(function () {
             // Master Categories
             Route::post('/device-categories', [DeviceCategoryController::class, 'store']);
             Route::patch('/device-categories/{deviceCategory}', [DeviceCategoryController::class, 'update']);
