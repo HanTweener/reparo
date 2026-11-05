@@ -9,7 +9,7 @@ on:
 
 jobs:
   backend-test:
-    name: Backend Test Suite (Laravel 11)
+    name: Backend Test Suite (Laravel 12)
     runs-on: ubuntu-latest
 
     defaults:
@@ -38,11 +38,12 @@ jobs:
       - name: Install Composer Dependencies
         run: composer install --prefer-dist --no-interaction --no-progress --optimize-autoloader
 
-      - name: Prepare Environment
+      - name: Prepare Environment & Database
         run: |
           cp .env.example .env
           touch database/database.sqlite
           php artisan key:generate
+          php artisan migrate:fresh --seed --force
 
       - name: Run Backend Feature & Unit Tests
         run: php artisan test
@@ -90,4 +91,3 @@ jobs:
           name: reparo-web-build
           path: frontend/build/web
           retention-days: 7
-

@@ -41,9 +41,10 @@ class _AdminHomeState extends State<AdminHome> {
 
   Future<void> _loadAll() async {
     setState(() => _isLoading = true);
+    final isCashier = widget.user.isCashier;
     final results = await Future.wait([
-      widget.repairService.getAdminOrders(),
-      widget.repairService.getStatistics(period: _statsPeriod),
+      widget.repairService.getOperationalOrders(isCashier: isCashier),
+      widget.repairService.getStatistics(period: _statsPeriod, isCashier: isCashier),
     ]);
     if (mounted) {
       setState(() {
@@ -56,7 +57,7 @@ class _AdminHomeState extends State<AdminHome> {
 
   void _onPeriodChanged(String p) async {
     setState(() => _statsPeriod = p);
-    final stats = await widget.repairService.getStatistics(period: p);
+    final stats = await widget.repairService.getStatistics(period: p, isCashier: widget.user.isCashier);
     if (mounted) setState(() => _stats = stats);
   }
 

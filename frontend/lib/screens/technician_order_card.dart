@@ -9,12 +9,14 @@ class TechnicianOrderCard extends StatelessWidget {
   final Map<String, dynamic> order;
   final TechnicianService service;
   final VoidCallback onRefresh;
+  final bool isAvailableScope;
 
   const TechnicianOrderCard({
     super.key,
     required this.order,
     required this.service,
     required this.onRefresh,
+    this.isAvailableScope = false,
   });
 
   @override
@@ -185,21 +187,27 @@ class TechnicianOrderCard extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              if (order['current_technician_id'] == null)
-                ReparoButton(
-                  label: 'Ambil Tugas Ini',
-                  isPrimary: true,
-                  onPressed: () async {
-                    final res = await service.claimOrder(id);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(res['message'] ?? res['error'] ?? 'Proses klaim selesai.')),
-                      );
-                    }
-                    onRefresh();
-                  },
-                )
-              else ...[
+              if (isAvailableScope || order['current_technician_id'] == null) ...[
+                if (order['current_technician_id'] == null)
+                  ReparoButton(
+                    label: 'Ambil Tugas Ini',
+                    isPrimary: true,
+                    onPressed: () async {
+                      final res = await service.claimOrder(id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(res['message'] ?? res['error'] ?? 'Proses klaim selesai.')),
+                        );
+                      }
+                      onRefresh();
+                    },
+                  )
+                else
+                  const ReparoButton(
+                    label: 'Telah diambil',
+                    onPressed: null,
+                  ),
+              ] else ...[
                 if (status == 'BOOKED')
                   ReparoButton(
                     label: 'Mulai Diagnosis',

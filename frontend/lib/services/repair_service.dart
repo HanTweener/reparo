@@ -12,9 +12,7 @@ class RepairService {
 
   RepairService({String? baseUrl}) : baseUrl = baseUrl ?? defaultApiUrl;
 
-  void setToken(String? token) {
-    _token = token;
-  }
+  void setToken(String? token) => _token = token;
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -22,7 +20,7 @@ class RepairService {
         if (_token != null) 'Authorization': 'Bearer $_token',
       };
 
-  // --- Categories ---
+  // --- Categories (Device & Service) ---
   Future<List<Map<String, dynamic>>> getCategories() async {
     try {
       final res = await http.get(Uri.parse('$baseUrl/device-categories'), headers: _headers);
@@ -31,36 +29,65 @@ class RepairService {
         return List<Map<String, dynamic>>.from(body['data']);
       }
     } catch (_) {}
-    return [
-      {'id': '1', 'name': 'Laptop', 'is_active': true},
-      {'id': '2', 'name': 'Smartphone', 'is_active': true},
-      {'id': '3', 'name': 'PC Desktop', 'is_active': true},
-    ];
+    return [];
   }
 
-  Future<Map<String, dynamic>> createCategory(String name) async {
+  Future<bool> createCategory(String name) async {
     try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/admin/device-categories'),
-        headers: _headers,
-        body: jsonEncode({'name': name}),
-      );
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        return {'success': true, 'data': body['data']};
-      }
-      return {'success': false, 'error': body['error']?['message'] ?? 'Gagal membuat kategori.'};
-    } catch (e) {
-      return {'success': false, 'error': 'Gagal terhubung ke server: $e'};
+      final res = await http.post(Uri.parse('$baseUrl/admin/device-categories'), headers: _headers, body: jsonEncode({'name': name}));
+      return res.statusCode == 201;
+    } catch (_) {
+      return false;
     }
   }
 
-  Future<bool> toggleCategory(String id, bool active) async {
+  Future<bool> toggleCategory(String id, bool isActive) async {
+    try {
+      final res = await http.patch(Uri.parse('$baseUrl/admin/device-categories/$id'), headers: _headers, body: jsonEncode({'is_active': isActive}));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getServiceCategories() async {
+    try {
+      final res = await http.get(Uri.parse('$baseUrl/service-categories'), headers: _headers);
+      if (res.statusCode == 200) {
+        final body = jsonDecode(res.body) as Map<String, dynamic>;
+        return List<Map<String, dynamic>>.from(body['data']);
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  Future<bool> createServiceCategory({
+    required String name,
+    required double basePrice,
+    String? description,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/admin/service-categories'),
+        headers: _headers,
+        body: jsonEncode({
+          'name': name,
+          'base_price': basePrice,
+          if (description != null && description.isNotEmpty) 'description': description,
+        }),
+      );
+      return res.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> toggleServiceCategory(String id, bool isActive) async {
     try {
       final res = await http.patch(
-        Uri.parse('$baseUrl/admin/device-categories/$id'),
+        Uri.parse('$baseUrl/admin/service-categories/$id'),
         headers: _headers,
-        body: jsonEncode({'is_active': active}),
+        body: jsonEncode({'is_active': isActive}),
       );
       return res.statusCode == 200;
     } catch (_) {
@@ -123,10 +150,11 @@ class RepairService {
     }
   }
 
-  // --- Admin & Cashier Shared Orders ---
-  Future<List<Map<String, dynamic>>> getAdminOrders({String? status}) async {
+  // --- Admin & Cashier Operational Orders ---
+  Future<List<Map<String, dynamic>>> getOperationalOrders({String? status, bool isCashier = false}) async {
     try {
-      final url = status != null ? '$baseUrl/admin/orders?status=$status' : '$baseUrl/admin/orders';
+      final pfx = isCashier ? 'cashier' : 'admin';
+      final url = status != null ? '$baseUrl/$pfx/orders?status=$status' : '$baseUrl/$pfx/orders';
       final res = await http.get(Uri.parse(url), headers: _headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -136,28 +164,21 @@ class RepairService {
     return [];
   }
 
-  Future<Map<String, dynamic>> getStatistics({String period = 'all'}) async {
+  Future<List<Map<String, dynamic>>> getAdminOrders({String? status}) => getOperationalOrders(status: status, isCashier: false);
+
+  Future<Map<String, dynamic>> getStatistics({String period = 'all', bool isCashier = false}) async {
     try {
-      final res = await http.get(
-        Uri.parse('$baseUrl/admin/orders/statistics?period=$period'),
-        headers: _headers,
-      );
+      final pfx = isCashier ? 'cashier' : 'admin';
+      final res = await http.get(Uri.parse('$baseUrl/$pfx/orders/statistics?period=$period'), headers: _headers);
       if (res.statusCode == 200) {
         final body = jsonDecode(res.body) as Map<String, dynamic>;
         return body['data'] as Map<String, dynamic>;
       }
     } catch (_) {}
-    return {
-      'period': period,
-      'incoming': 0,
-      'in_progress': 0,
-      'completed': 0,
-      'cancelled': 0,
-      'total': 0,
-    };
+    return {'period': period, 'incoming': 0, 'in_progress': 0, 'completed': 0, 'cancelled': 0, 'total': 0};
   }
 
-  Future<Map<String, dynamic>> createAdminBooking({
+  Future<Map<String, dynamic>> createOperationalBooking({
     required String customerName,
     String? customerEmail,
     required String deviceName,
@@ -165,10 +186,12 @@ class RepairService {
     String serviceCode = 'MAINTENANCE',
     required String issueDescription,
     required String preferredArrivalDate,
+    bool isCashier = false,
   }) async {
     try {
+      final pfx = isCashier ? 'cashier' : 'admin';
       final res = await http.post(
-        Uri.parse('$baseUrl/admin/orders'),
+        Uri.parse('$baseUrl/$pfx/orders'),
         headers: _headers,
         body: jsonEncode({
           'customer_name': customerName,
@@ -178,6 +201,7 @@ class RepairService {
           'service_code': serviceCode,
           'issue_description': issueDescription,
           'preferred_arrival_date': preferredArrivalDate,
+          'arrival_date': preferredArrivalDate,
         }),
       );
       final body = jsonDecode(res.body) as Map<String, dynamic>;
@@ -190,12 +214,32 @@ class RepairService {
     }
   }
 
-  Future<bool> confirmSchedule(String orderId, String date) async {
+  Future<Map<String, dynamic>> createAdminBooking({
+    required String customerName,
+    String? customerEmail,
+    required String deviceName,
+    String? categoryId,
+    String serviceCode = 'MAINTENANCE',
+    required String issueDescription,
+    required String preferredArrivalDate,
+  }) => createOperationalBooking(
+    customerName: customerName,
+    customerEmail: customerEmail,
+    deviceName: deviceName,
+    categoryId: categoryId,
+    serviceCode: serviceCode,
+    issueDescription: issueDescription,
+    preferredArrivalDate: preferredArrivalDate,
+    isCashier: false,
+  );
+
+  Future<bool> confirmSchedule(String orderId, String date, {bool isCashier = false}) async {
     try {
+      final pfx = isCashier ? 'cashier' : 'admin';
       final res = await http.patch(
-        Uri.parse('$baseUrl/admin/orders/$orderId/schedule'),
+        Uri.parse('$baseUrl/$pfx/orders/$orderId/schedule'),
         headers: _headers,
-        body: jsonEncode({'confirmed_arrival_date': date}),
+        body: jsonEncode({'confirmed_arrival_date': date, if (isCashier) 'arrival_date': date}),
       );
       return res.statusCode == 200;
     } catch (_) {
@@ -208,10 +252,7 @@ class RepairService {
       final res = await http.put(
         Uri.parse('$baseUrl/admin/orders/$orderId/assignment'),
         headers: _headers,
-        body: jsonEncode({
-          'technician_id': int.tryParse(technicianId) ?? technicianId,
-          'reason': reason,
-        }),
+        body: jsonEncode({'technician_id': int.tryParse(technicianId) ?? technicianId, 'reason': reason}),
       );
       return res.statusCode == 200;
     } catch (_) {

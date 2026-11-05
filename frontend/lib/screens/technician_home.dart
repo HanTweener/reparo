@@ -102,6 +102,7 @@ class _TechnicianHomeState extends State<TechnicianHome> {
                   order: o,
                   service: widget.technicianService,
                   onRefresh: _loadOrders,
+                  isAvailableScope: _currentScope == 'available',
                 )),
         ],
       ),

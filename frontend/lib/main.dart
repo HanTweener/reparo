@@ -77,11 +77,13 @@ class _ReparoAppState extends State<ReparoApp> {
                 auth.signOut();
                 setState(() => _currentRoute = 'orders');
               },
-              onSwitchRole: (role) {
-                auth.quickSwitchRole(role);
-                setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
-                    ? 'queue'
-                    : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+              onSwitchRole: (role) async {
+                await auth.quickSwitchRole(role);
+                if (mounted) {
+                  setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
+                      ? 'queue'
+                      : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+                }
               },
               child: _buildRoleContent(auth),
             )
@@ -107,11 +109,13 @@ class _ReparoAppState extends State<ReparoApp> {
           auth.signOut();
           setState(() => _currentRoute = 'orders');
         },
-        onSwitchRole: (role) {
-          auth.quickSwitchRole(role);
-          setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
-              ? 'queue'
-              : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+        onSwitchRole: (role) async {
+          await auth.quickSwitchRole(role);
+          if (mounted) {
+            setState(() => _currentRoute = (role == 'ADMIN' || role == 'CASHIER')
+                ? 'queue'
+                : ((role == 'TECHNICIAN') ? 'tasks' : 'orders'));
+          }
         },
         onBack: () {
           setState(() {
@@ -164,6 +168,7 @@ class _ReparoAppState extends State<ReparoApp> {
         return AdminBookingScreen(
           repairService: auth.repairService,
           onNavigate: (route) => setState(() => _currentRoute = route),
+          isCashier: true,
         );
       }
       return AdminHome(

@@ -39,7 +39,7 @@ class AppShell extends StatelessWidget {
       return const [
         NavDestination(label: 'Antrian', icon: Icons.inbox_outlined, routeId: 'queue'),
         NavDestination(label: 'Booking', icon: Icons.add_circle_outline, routeId: 'booking'),
-        NavDestination(label: 'Kategori', icon: Icons.category_outlined, routeId: 'categories'),
+        NavDestination(label: 'Manajemen Kategori', icon: Icons.category_outlined, routeId: 'categories'),
         NavDestination(label: 'Staf & Performa', icon: Icons.people_outline, routeId: 'staff'),
         NavDestination(label: 'Manajemen Akun', icon: Icons.manage_accounts_outlined, routeId: 'accounts'),
       ];

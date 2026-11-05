@@ -19,22 +19,33 @@ class AdminCategoriesScreen extends StatefulWidget {
 }
 
 class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
-  List<Map<String, dynamic>> _categories = [];
+  int _selectedTab = 0; // 0: Perangkat, 1: Layanan
+  List<Map<String, dynamic>> _deviceCategories = [];
+  List<Map<String, dynamic>> _serviceCategories = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _loadAll();
   }
 
-  Future<void> _load() async {
+  Future<void> _loadAll() async {
     setState(() => _isLoading = true);
-    final list = await widget.repairService.getCategories();
-    if (mounted) setState(() { _categories = list; _isLoading = false; });
+    final results = await Future.wait([
+      widget.repairService.getCategories(),
+      widget.repairService.getServiceCategories(),
+    ]);
+    if (mounted) {
+      setState(() {
+        _deviceCategories = results[0];
+        _serviceCategories = results[1];
+        _isLoading = false;
+      });
+    }
   }
 
-  void _showAddDialog() {
+  void _showAddDeviceCategoryDialog() {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
@@ -43,8 +54,8 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
         content: TextField(
           controller: ctrl,
           decoration: const InputDecoration(
-            labelText: 'Nama Kategori',
-            hintText: 'Contoh: Konsol Game, Tablet, Drone',
+            labelText: 'Nama Kategori Perangkat',
+            hintText: 'Contoh: Konsol Game, Drone, Smartwatch',
           ),
         ),
         actions: [
@@ -54,13 +65,61 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
             onPressed: () async {
               if (ctrl.text.trim().isEmpty) return;
               Navigator.pop(ctx);
-              final res = await widget.repairService.createCategory(ctrl.text.trim());
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(res['data']?['message'] ?? res['error'] ?? 'Proses selesai.')),
-                );
-                _load();
-              }
+              await widget.repairService.createCategory(ctrl.text.trim());
+              _loadAll();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddServiceCategoryDialog() {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tambah Kategori Layanan Servis'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Nama Layanan', hintText: 'Contoh: Ganti Baterai'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Harga Dasar (Rp)', hintText: '250000'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Keterangan Singkat', hintText: 'Garansi dan cakupan perbaikan'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
+          ReparoButton(
+            label: 'Simpan Layanan',
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final price = double.tryParse(priceCtrl.text.trim()) ?? 0;
+              Navigator.pop(ctx);
+              await widget.repairService.createServiceCategory(
+                name: nameCtrl.text.trim(),
+                basePrice: price,
+                description: descCtrl.text.trim(),
+              );
+              _loadAll();
             },
           ),
         ],
@@ -82,80 +141,153 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
               const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Master Kategori Perangkat', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  Text('Kelola kategori perangkat yang dilayani oleh bengkel/toko', style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),
+                  Text('Manajemen Kategori', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                  Text('Kelola master kategori perangkat dan paket layanan servis',
+                      style: TextStyle(fontSize: 13, color: ReparoTheme.textMuted)),
                 ],
               ),
               const Spacer(),
               ReparoButton(
-                label: 'Tambah Kategori',
+                label: _selectedTab == 0 ? 'Tambah Kategori Perangkat' : 'Tambah Layanan',
                 icon: Icons.add,
-                onPressed: _showAddDialog,
+                onPressed: _selectedTab == 0 ? _showAddDeviceCategoryDialog : _showAddServiceCategoryDialog,
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+
+          // Segmented Tabs
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 0, label: Text('Kategori Perangkat'), icon: Icon(Icons.devices_outlined)),
+              ButtonSegment(value: 1, label: Text('Kategori Layanan Servis'), icon: Icon(Icons.miscellaneous_services_outlined)),
+            ],
+            selected: {_selectedTab},
+            onSelectionChanged: (set) => setState(() => _selectedTab = set.first),
+          ),
+          const SizedBox(height: 20),
+
           if (_isLoading)
             const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator()))
-          else if (_categories.isEmpty)
-            _buildEmpty()
+          else if (_selectedTab == 0)
+            _buildDeviceCategoriesList()
           else
-            Container(
-              decoration: BoxDecoration(
-                color: ReparoTheme.surface,
-                borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel),
-                border: Border.all(color: ReparoTheme.border),
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _categories.length,
-                separatorBuilder: (_, __) => const Divider(height: 1, color: ReparoTheme.rule),
-                itemBuilder: (context, index) {
-                  final cat = _categories[index];
-                  final isActive = cat['is_active'] != false;
-                  final id = cat['id'].toString();
-
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    leading: CircleAvatar(
-                      backgroundColor: ReparoTheme.surfaceRaised,
-                      child: const Icon(Icons.category, color: ReparoTheme.accent, size: 20),
-                    ),
-                    title: Text(cat['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        StatusBadge(
-                          label: isActive ? 'Aktif' : 'Nonaktif',
-                          variant: isActive ? BadgeVariant.success : BadgeVariant.neutral,
-                        ),
-                        const SizedBox(width: 12),
-                        Switch(
-                          value: isActive,
-                          activeColor: ReparoTheme.accent,
-                          onChanged: (val) async {
-                            await widget.repairService.toggleCategory(id, val);
-                            _load();
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
+            _buildServiceCategoriesList(),
         ],
       ),
     );
   }
 
-  Widget _buildEmpty() {
+  Widget _buildDeviceCategoriesList() {
+    if (_deviceCategories.isEmpty) {
+      return _buildEmpty('Belum ada kategori perangkat.');
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: ReparoTheme.surface,
+        borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel),
+        border: Border.all(color: ReparoTheme.border),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _deviceCategories.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: ReparoTheme.rule),
+        itemBuilder: (context, index) {
+          final cat = _deviceCategories[index];
+          final isActive = cat['is_active'] != false;
+          final id = cat['id'].toString();
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: const CircleAvatar(
+              backgroundColor: ReparoTheme.surfaceRaised,
+              child: Icon(Icons.devices, color: ReparoTheme.accent, size: 20),
+            ),
+            title: Text(cat['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusBadge(
+                  label: isActive ? 'Aktif' : 'Nonaktif',
+                  variant: isActive ? BadgeVariant.success : BadgeVariant.neutral,
+                ),
+                const SizedBox(width: 12),
+                Switch(
+                  value: isActive,
+                  activeColor: ReparoTheme.accent,
+                  onChanged: (val) async {
+                    await widget.repairService.toggleCategory(id, val);
+                    _loadAll();
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildServiceCategoriesList() {
+    if (_serviceCategories.isEmpty) {
+      return _buildEmpty('Belum ada kategori layanan servis.');
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: ReparoTheme.surface,
+        borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel),
+        border: Border.all(color: ReparoTheme.border),
+      ),
+      child: ListView.separated(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: _serviceCategories.length,
+        separatorBuilder: (_, __) => const Divider(height: 1, color: ReparoTheme.rule),
+        itemBuilder: (context, index) {
+          final s = _serviceCategories[index];
+          final isActive = s['is_active'] != false;
+          final id = s['id'].toString();
+          final price = (s['base_price'] as num?)?.toInt() ?? 0;
+
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            leading: const CircleAvatar(
+              backgroundColor: ReparoTheme.surfaceRaised,
+              child: Icon(Icons.build, color: ReparoTheme.statusWarning, size: 20),
+            ),
+            title: Text(s['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            subtitle: Text('Mulai Rp $price — ${s['description'] ?? ''}',
+                style: const TextStyle(fontSize: 12, color: ReparoTheme.textMuted)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusBadge(
+                  label: isActive ? 'Aktif' : 'Nonaktif',
+                  variant: isActive ? BadgeVariant.success : BadgeVariant.neutral,
+                ),
+                const SizedBox(width: 12),
+                Switch(
+                  value: isActive,
+                  activeColor: ReparoTheme.accent,
+                  onChanged: (val) async {
+                    await widget.repairService.toggleServiceCategory(id, val);
+                    _loadAll();
+                  },
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildEmpty(String msg) {
     return Container(
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(color: ReparoTheme.surface, borderRadius: BorderRadius.circular(ReparoTheme.radiusPanel)),
-      child: const Center(child: Text('Belum ada kategori perangkat.')),
+      child: Center(child: Text(msg)),
     );
   }
 }
-

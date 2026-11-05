@@ -6,11 +6,13 @@ import '../widgets/reparo_button.dart';
 class AdminBookingScreen extends StatefulWidget {
   final RepairService repairService;
   final ValueChanged<String> onNavigate;
+  final bool isCashier;
 
   const AdminBookingScreen({
     super.key,
     required this.repairService,
     required this.onNavigate,
+    this.isCashier = false,
   });
 
   @override
@@ -61,7 +63,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
       setState(() => _isSubmitting = true);
       final dateStr =
           '${_arrivalDate.year}-${_arrivalDate.month.toString().padLeft(2, '0')}-${_arrivalDate.day.toString().padLeft(2, '0')}';
-      final res = await widget.repairService.createAdminBooking(
+      final res = await widget.repairService.createOperationalBooking(
         customerName: _customerNameCtrl.text.trim(),
         customerEmail: _customerEmailCtrl.text.trim().isNotEmpty ? _customerEmailCtrl.text.trim() : null,
         deviceName: _deviceNameCtrl.text.trim(),
@@ -69,6 +71,7 @@ class _AdminBookingScreenState extends State<AdminBookingScreen> {
         serviceCode: _selectedServiceCode,
         issueDescription: _issueCtrl.text.trim(),
         preferredArrivalDate: dateStr,
+        isCashier: widget.isCashier,
       );
       setState(() => _isSubmitting = false);
 

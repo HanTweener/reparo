@@ -122,24 +122,24 @@ class DeviceAndOrderTest extends TestCase
 
     public function test_admin_and_cashier_can_create_walkin_and_view_statistics(): void
     {
-        // 1. Cashier creates walk-in booking
-        $respWalkin = $this->actingAs($this->cashier)->postJson('/api/v1/admin/orders', [
+        // 1. Cashier creates walk-in booking via dedicated cashier endpoint
+        $respWalkin = $this->actingAs($this->cashier)->postJson('/api/v1/cashier/orders', [
             'customer_name' => 'Walkin Budi',
             'customer_email' => 'budi_walkin@example.com',
             'device_name' => 'Asus Vivobook 14',
             'category_id' => $this->category->id,
             'service_code' => 'REPAIR',
             'issue_description' => 'Keyboard tombol enter tidak berfungsi.',
-            'preferred_arrival_date' => now()->toDateString(),
+            'arrival_date' => now()->toDateString(),
         ]);
         $respWalkin->assertStatus(201)
             ->assertJsonPath('data.status', 'BOOKED');
 
-        // 2. Both Admin and Cashier can view statistics
+        // 2. Both Admin and Cashier can view statistics on their respective endpoints
         $respStatsAdmin = $this->actingAs($this->admin)->getJson('/api/v1/admin/orders/statistics?period=day');
         $respStatsAdmin->assertStatus(200)->assertJsonStructure(['data' => ['period', 'incoming', 'total']]);
 
-        $respStatsCashier = $this->actingAs($this->cashier)->getJson('/api/v1/admin/orders/statistics?period=day');
+        $respStatsCashier = $this->actingAs($this->cashier)->getJson('/api/v1/cashier/orders/statistics?period=day');
         $respStatsCashier->assertStatus(200);
     }
 
@@ -163,6 +163,12 @@ class DeviceAndOrderTest extends TestCase
             'name' => 'Drone',
         ]);
         $respCatAdmin->assertStatus(201);
+
+        $respServAdmin = $this->actingAs($this->admin)->postJson('/api/v1/admin/service-categories', [
+            'name' => 'Refurbish Fan',
+            'base_price' => 75000,
+        ]);
+        $respServAdmin->assertStatus(201);
     }
 
     public function test_cancellation_flow(): void

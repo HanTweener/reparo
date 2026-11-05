@@ -19,6 +19,17 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // 1b. Service Categories (Master Layanan)
+        Schema::create('service_categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->string('code', 64)->unique();
+            $table->decimal('base_price', 12, 2)->default(0);
+            $table->string('description', 500)->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+
         // 2. Repair Orders (Direct device input without customer_devices)
         Schema::create('repair_orders', function (Blueprint $table) {
             $table->id();
@@ -92,6 +103,7 @@ return new class extends Migration
         Schema::dropIfExists('order_status_history');
         Schema::dropIfExists('repair_orders');
         Schema::dropIfExists('customer_devices');
+        Schema::dropIfExists('service_categories');
         Schema::dropIfExists('device_categories');
     }
 };
